@@ -1,0 +1,26 @@
+# FoBlackmarket main config
+settings:
+  restock-interval-minutes: 60
+  announce-restocks: true
+  command-opens-gui: true
+  performance:
+    purchase-cooldown-millis: 100
+    open-gui-cooldown-millis: 100
+    send-cooldown-feedback: false
+    send-failed-purchase-feedback: true
+    failed-purchase-feedback-cooldown-millis: 750
+  time-format:
+    day: "d"
+    hour: "h"
+    minute: "m"
+    second: "s"
+
+native-dialogs:
+  # Uses Minecraft's native dialog/input screens for search and text/number input when supported.
+  # Requires a compatible Paper or Paper-fork server with the Dialog API.
+  # Spigot and older versions automatically fall back to inventory/chat GUI mode.
+  # Set this to false to always use inventory/chat GUI mode.
+  enabled: true
+
+  # Sends admins a short warning when native dialogs are enabled but unavailable and the plugin falls back.
+  warn-on-fallback: true

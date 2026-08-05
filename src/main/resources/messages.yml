@@ -1,0 +1,44 @@
+# FoBlackmarket messages
+# Tokens: {prefix} {theme} {muted} {white} {good} {bad}
+
+tokens:
+  prefix: "{theme}FoBlackmarket &8» {muted}"
+  theme: "#03fc88"
+  muted: "#a7b8b0"
+  white: "#ffffff"
+  good: "#3ecf8e"
+  bad: "#ff5d73"
+
+messages:
+  no-permission: "{prefix} {bad}You do not have permission."
+  player-only: "{prefix} {bad}Only players can use this."
+  blackmarket-info: "{prefix} {muted}Visit the {theme}Black Market NPC{muted}. Next restock in {theme}{time_remaining}{muted}."
+  market-unavailable: "{prefix} {bad}The black market is not ready yet."
+  reload-success: "{prefix} {good}Config, messages, GUIs and market data reloaded."
+  reload-failed: "{prefix} {bad}Reload failed at {theme}{step}{bad}. {muted}{error}"
+  restock-success: "{prefix} {good}The black market was restocked immediately."
+  opengui-success: "{prefix} {good}Opened the black market for {theme}{player}{good}."
+  player-not-found: "{prefix} {bad}That player is not online."
+  invalid-subcommand: "{prefix} {bad}Usage: {theme}/foblackmarketadmin <version|editor|reload|restock|opengui>{muted}."
+  invalid-opengui: "{prefix} {bad}Usage: {theme}/foblackmarketadmin opengui <player>{muted}."
+  command-failed: "{prefix} {bad}Command failed. {muted}{error}"
+  editor-saved: "{prefix} {good}Saved {theme}{target}{good}."
+  editor-cancelled: "{prefix} {bad}Cancelled input."
+  editor-invalid: "{prefix} {bad}Invalid input. {muted}{reason}"
+  market-bought: "{prefix} {good}Purchased {theme}{reward}{good}. Remaining stock: {theme}{stock}{good}."
+  market-sold-out: "{prefix} {bad}That offer is sold out."
+  market-not-enough-money: "{prefix} {bad}You need {theme}{price}{bad} to buy that."
+  market-not-enough-items: "{prefix} {bad}You need the required item cost to buy that."
+  market-inventory-full: "{prefix} {bad}You need inventory space first."
+  market-purchase-failed: "{prefix} {bad}That purchase could not be completed."
+  market-cooldown: "{prefix} {bad}Please wait a moment before trying again."
+  opengui-cooldown: "{prefix} {bad}That player's market was opened too recently."
+  market-restocked-broadcast: "{prefix} {good}The Black Market has restocked. {muted}Next refresh in {theme}{time_remaining}{muted}."
+
+titles:
+  admin-main: "&8Black Market Editor"
+  rewards: "&8Reward Sets"
+  reward-edit: "&8Edit Reward"
+  rarities: "&8Rarities"
+  rarity-edit: "&8Edit Rarity"
+  layout: "&8Market Layout"

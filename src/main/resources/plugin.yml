@@ -1,0 +1,25 @@
+name: FoBlackmarket
+description: Highly customizable black market plugin for NPC-driven servers
+version: '${version}'
+main: me.foesio.foBlackmarket.FoBlackmarket
+api-version: '1.21'
+authors: [Carrotio]
+softdepend: [PlaceholderAPI, Vault]
+
+commands:
+  blackmarket:
+    description: Shows black market information
+    aliases: [bm, foblackmarket]
+    permission: foblackmarket.use
+  foblackmarketadmin:
+    description: Admin command for FoBlackmarket
+    aliases: [blackmarketadmin, bmadmin]
+    permission: foblackmarket.admin
+
+permissions:
+  foblackmarket.use:
+    description: Allows players to use /blackmarket
+    default: true
+  foblackmarket.admin:
+    description: Allows access to FoBlackmarket admin tools
+    default: op
