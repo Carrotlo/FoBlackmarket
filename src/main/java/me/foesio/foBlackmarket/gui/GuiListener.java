@@ -1,6 +1,7 @@
 package me.foesio.foBlackmarket.gui;
 
 import me.foesio.foBlackmarket.FoBlackmarket;
+import me.foesio.core.gui.EntryBrowserHolder;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -22,6 +23,23 @@ public final class GuiListener implements Listener {
 
     @EventHandler
     public void onClick(InventoryClickEvent event) {
+        if (event.getView().getTopInventory().getHolder() instanceof EntryBrowserHolder entryHolder
+                && (RewardListGui.owns(entryHolder) || RarityListGui.owns(entryHolder))) {
+            int topSize = event.getView().getTopInventory().getSize();
+            boolean topClick = event.getRawSlot() >= 0 && event.getRawSlot() < topSize;
+            event.setCancelled(true);
+            if (topClick && event.getWhoClicked() instanceof Player player) {
+                if (RewardListGui.owns(entryHolder)) {
+                    new RewardListGui(plugin, player, entryHolder.request().page(), entryHolder.request().filter())
+                            .handleEntryBrowserClick(event, entryHolder);
+                } else {
+                    new RarityListGui(plugin, player, entryHolder.request().page(), entryHolder.request().filter())
+                            .handleEntryBrowserClick(event, entryHolder);
+                }
+            }
+            return;
+        }
+
         if (!(event.getView().getTopInventory().getHolder() instanceof BaseGui gui)) {
             return;
         }
@@ -40,6 +58,13 @@ public final class GuiListener implements Listener {
 
     @EventHandler
     public void onDrag(InventoryDragEvent event) {
+        if (event.getView().getTopInventory().getHolder() instanceof EntryBrowserHolder entryHolder
+                && (RewardListGui.owns(entryHolder) || RarityListGui.owns(entryHolder))) {
+            int topSize = event.getView().getTopInventory().getSize();
+            event.setCancelled(event.getRawSlots().stream().anyMatch(slot -> slot < topSize));
+            return;
+        }
+
         if (!(event.getView().getTopInventory().getHolder() instanceof BaseGui gui)) {
             return;
         }

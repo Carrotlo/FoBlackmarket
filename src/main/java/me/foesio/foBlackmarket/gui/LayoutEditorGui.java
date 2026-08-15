@@ -192,6 +192,7 @@ public final class LayoutEditorGui extends BaseGui {
             lore.add("#a7b8b0Create a rarity first.");
         } else {
             lore.addAll(CycleOptions.lore(
+                plugin.getMessages(),
                 rarity == null ? null : rarityId,
                 rarityIds.stream()
                     .map(id -> new CycleOption(id, id))

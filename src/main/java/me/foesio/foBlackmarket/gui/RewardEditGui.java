@@ -338,6 +338,7 @@ public final class RewardEditGui extends BaseGui {
             lore.add("#a7b8b0No rarities configured.");
         } else {
             lore.addAll(CycleOptions.lore(
+                plugin.getMessages(),
                 reward.getRarityId(),
                 rarityIds.stream()
                     .map(id -> new CycleOption(id, id))
@@ -353,7 +354,7 @@ public final class RewardEditGui extends BaseGui {
         String selected = costTypeDisplayName(type);
         lore.add("#ffffffCurrent: #03fc88" + selected);
         lore.add("#ffffffClick to cycle.");
-        lore.addAll(CycleOptions.lore(type.name(), List.of(
+        lore.addAll(CycleOptions.lore(plugin.getMessages(), type.name(), List.of(
             new CycleOption(CostType.MONEY.name(), "Money"),
             new CycleOption(CostType.ITEM.name(), "Item"),
             new CycleOption(CostType.BOTH.name(), "Both")
@@ -366,7 +367,7 @@ public final class RewardEditGui extends BaseGui {
         List<String> lore = new ArrayList<>();
         lore.add("#ffffffCurrent: #03fc88" + stockMode.getDisplayName());
         lore.add("#ffffffClick to cycle.");
-        lore.addAll(CycleOptions.lore(stockMode.name(), List.of(
+        lore.addAll(CycleOptions.lore(plugin.getMessages(), stockMode.name(), List.of(
             new CycleOption(StockMode.SERVER_WIDE.name(), StockMode.SERVER_WIDE.getDisplayName()),
             new CycleOption(StockMode.PER_PLAYER.name(), StockMode.PER_PLAYER.getDisplayName())
         )));
