@@ -28,10 +28,12 @@ public final class BlackmarketCommand implements CommandExecutor {
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!sender.hasPermission("foblackmarket.use")) {
             plugin.getMessages().send(sender, "messages.no-permission");
+            plugin.getAdminSounds().updateError(sender);
             return true;
         }
         if (!marketService.hasActiveMarket()) {
             plugin.getMessages().send(sender, "messages.market-unavailable");
+            plugin.getAdminSounds().updateError(sender);
             return true;
         }
 
@@ -44,6 +46,7 @@ public final class BlackmarketCommand implements CommandExecutor {
             GuiManager.OpenPlayerMarketResult result = guiManager.openCommandMarket(player);
             if (result == GuiManager.OpenPlayerMarketResult.COOLDOWN && configManager.shouldSendCooldownFeedback()) {
                 plugin.getMessages().send(sender, "messages.market-cooldown");
+                plugin.getAdminSounds().updateError(sender);
             }
             return true;
         }

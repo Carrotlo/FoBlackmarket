@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Map;
 import me.foesio.core.editor.CycleOption;
 import me.foesio.core.editor.CycleOptions;
-import me.foesio.core.editor.EditorDialogInputs;
 import me.foesio.core.text.FoText;
 import me.foesio.foBlackmarket.FoBlackmarket;
 import me.foesio.foBlackmarket.market.CostType;
@@ -33,7 +32,7 @@ public final class RewardEditGui extends BaseGui {
     protected void render() {
         RewardDefinition reward = getReward();
         if (reward == null) {
-            plugin.getGuiManager().openRewardList(viewer, 0);
+            plugin.getGuiManager().openRewardListSilently(viewer, 0);
             return;
         }
 
@@ -67,7 +66,7 @@ public final class RewardEditGui extends BaseGui {
     public void handleClick(InventoryClickEvent event) {
         RewardDefinition reward = getReward();
         if (reward == null) {
-            plugin.getGuiManager().openRewardList(viewer, 0);
+            plugin.getGuiManager().openRewardListSilently(viewer, 0);
             return;
         }
 
@@ -79,13 +78,17 @@ public final class RewardEditGui extends BaseGui {
                 if (!rarityIds.isEmpty()) {
                     int current = Math.max(0, rarityIds.indexOf(reward.getRarityId()));
                     reward.setRarityId(rarityIds.get((current + 1) % rarityIds.size()));
+                    editorSounds.cycle(viewer);
                     saveAndRefresh("reward rarity");
+                } else {
+                    editorSounds.error(viewer);
                 }
             }
             case 13 -> promptDouble("Enter the reward chance.", String.valueOf(reward.getChance()), reward::setChance, "Use a number like 25 or 12.5.");
             case 14 -> promptInt("Enter the stock amount.", String.valueOf(reward.getStock()), reward::setStock, "Use a whole number.");
             case 15 -> {
                 reward.getCost().setType(nextCostType(reward.getCost().getType()));
+                editorSounds.cycle(viewer);
                 saveAndRefresh("reward cost type");
             }
             case 16 -> {
@@ -94,34 +97,41 @@ public final class RewardEditGui extends BaseGui {
                 } else if (reward.getCost().getType() == CostType.ITEM) {
                     if (event.getClick() == ClickType.RIGHT) {
                         reward.getCost().setItemCost(null);
+                        editorSounds.delete(viewer);
                         saveAndRefresh("reward item cost");
                         return;
                     }
                     ItemStack item = inputItem(event.getCursor());
                     if (item == null) {
+                        editorSounds.addItemError(viewer);
                         plugin.getMessages().send(viewer, "messages.editor-invalid", Map.of("reason", "Hold the cost item in your main hand first."));
                         return;
                     }
                     reward.getCost().setItemCost(item);
+                    editorSounds.addItem(viewer);
                     saveAndRefresh("reward item cost");
                 } else if (event.getClick() == ClickType.RIGHT) {
                     reward.getCost().setItemCost(null);
+                    editorSounds.delete(viewer);
                     saveAndRefresh("reward item cost");
                 } else {
                     ItemStack item = inputItem(event.getCursor());
                     if (item != null) {
                         reward.getCost().setItemCost(item);
+                        editorSounds.addItem(viewer);
                         saveAndRefresh("reward item cost");
                         return;
                     }
                     if (event.getClick().isShiftClick()) {
                         reward.getCost().setMoneyCost(0.0D);
+                        editorSounds.delete(viewer);
                         saveAndRefresh("reward money cost");
                         return;
                     }
                     if (viewer.getInventory().getItemInMainHand().getType().isAir()) {
                         promptMoney("Enter the money cost.", String.valueOf(reward.getCost().getMoneyCost()), reward.getCost()::setMoneyCost, "Use a number like 500 or 500.0.");
                     } else {
+                        editorSounds.error(viewer);
                         plugin.getMessages().send(viewer, "messages.editor-invalid", Map.of("reason", "For BOTH costs: click with an item to set the item cost, or empty your hand and click to edit money."));
                         return;
                     }
@@ -132,17 +142,24 @@ public final class RewardEditGui extends BaseGui {
             case 21 -> promptCommands(reward);
             case 23 -> {
                 reward.setStockMode(reward.getStockMode().next());
+                editorSounds.cycle(viewer);
                 saveAndRefresh("reward stock mode");
             }
             case 24 -> {
                 if (event.getClick().isShiftClick()) {
                     plugin.getMarketService().getMarketData().getRewards().remove(reward.getId());
                     plugin.getMarketService().persistRewardRemoval(reward.getId());
+                    editorSounds.delete(viewer);
                     plugin.getMessages().send(viewer, "messages.editor-saved", Map.of("target", "reward deletion"));
-                    plugin.getGuiManager().openRewardList(viewer, 0);
+                    plugin.getGuiManager().openRewardListSilently(viewer, 0);
+                } else {
+                    editorSounds.error(viewer);
                 }
             }
-            case 31 -> plugin.getGuiManager().openRewardList(viewer, 0);
+            case 31 -> {
+                editorSounds.back(viewer);
+                plugin.getGuiManager().openRewardListSilently(viewer, 0);
+            }
             default -> {
             }
         }
@@ -158,16 +175,19 @@ public final class RewardEditGui extends BaseGui {
 
         if (event.getRawSlots().contains(19)) {
             reward.setIcon(dragged);
+            editorSounds.addItem(viewer);
             saveAndRefresh("reward icon");
             return;
         }
         if (event.getRawSlots().contains(20)) {
             reward.setRewardItem(dragged);
+            editorSounds.addItem(viewer);
             saveAndRefresh("reward item");
             return;
         }
         if ((reward.getCost().getType() == CostType.ITEM || reward.getCost().getType() == CostType.BOTH) && event.getRawSlots().contains(16)) {
             reward.getCost().setItemCost(dragged);
+            editorSounds.addItem(viewer);
             saveAndRefresh("reward item cost");
         }
     }
@@ -182,11 +202,13 @@ public final class RewardEditGui extends BaseGui {
     }
 
     private void promptRenameId(RewardDefinition reward) {
-        EditorDialogInputs.openTextFromInventory(plugin, plugin.getCore().inventoryCloseSuppressor(), plugin.getCore().dialogService(), viewer, editorTextRequest("Enter the new reward id.", reward.getId()), input -> {
+        openEditorInput(editorTextRequest("Enter the new reward id.", reward.getId()), input -> {
             String id = input.toLowerCase().replaceAll("[^a-z0-9_\\-]", "_").trim();
             if (id.isBlank()) {
+                editorSounds.error(viewer);
                 plugin.getMessages().send(viewer, "messages.editor-invalid", Map.of("reason", "Reward ids must contain letters or numbers."));
             } else if (!id.equalsIgnoreCase(reward.getId()) && plugin.getMarketService().getMarketData().getRewards().containsKey(id)) {
+                editorSounds.error(viewer);
                 plugin.getMessages().send(viewer, "messages.editor-invalid", Map.of("reason", "That reward id already exists."));
             } else {
                 String previousId = reward.getId();
@@ -194,79 +216,87 @@ public final class RewardEditGui extends BaseGui {
                 reward.setId(id);
                 plugin.getMarketService().getMarketData().getRewards().put(id, reward);
                 plugin.getMarketService().persistRewardChange(previousId, id);
+                editorSounds.save(viewer);
                 plugin.getMessages().send(viewer, "messages.editor-saved", Map.of("target", "reward id"));
-                runForViewer(() -> plugin.getGuiManager().openRewardEditor(viewer, id));
+                runForViewer(() -> plugin.getGuiManager().openRewardEditorSilently(viewer, id));
                 return;
             }
-            runForViewer(() -> plugin.getGuiManager().openRewardEditor(viewer, reward.getId()));
+            runForViewer(() -> plugin.getGuiManager().openRewardEditorSilently(viewer, reward.getId()));
         }, () -> {
             plugin.getMessages().send(viewer, "messages.editor-cancelled");
-            plugin.getGuiManager().openRewardEditor(viewer, reward.getId());
+            plugin.getGuiManager().openRewardEditorSilently(viewer, reward.getId());
         });
     }
 
     private void promptString(String prompt, String currentValue, java.util.function.Consumer<String> consumer) {
-        EditorDialogInputs.openTextFromInventory(plugin, plugin.getCore().inventoryCloseSuppressor(), plugin.getCore().dialogService(), viewer, editorTextRequest(prompt, currentValue), input -> {
+        openEditorInput(editorTextRequest(prompt, currentValue), input -> {
             consumer.accept(input);
             persistCurrentRewardChange();
+            editorSounds.save(viewer);
             plugin.getMessages().send(viewer, "messages.editor-saved", Map.of("target", "reward value"));
-            runForViewer(() -> plugin.getGuiManager().openRewardEditor(viewer, getReward().getId()));
+            runForViewer(() -> plugin.getGuiManager().openRewardEditorSilently(viewer, getReward().getId()));
         }, () -> {
             plugin.getMessages().send(viewer, "messages.editor-cancelled");
-            plugin.getGuiManager().openRewardEditor(viewer, getReward().getId());
+            plugin.getGuiManager().openRewardEditorSilently(viewer, getReward().getId());
         });
     }
 
     private void promptDouble(String prompt, String currentValue, java.util.function.DoubleConsumer consumer, String invalidReason) {
-        EditorDialogInputs.openTextFromInventory(plugin, plugin.getCore().inventoryCloseSuppressor(), plugin.getCore().dialogService(), viewer, editorNumberRequest(prompt, currentValue), input -> {
+        openEditorInput(editorNumberRequest(prompt, currentValue), input -> {
             try {
                 consumer.accept(Double.parseDouble(input.trim()));
                 persistCurrentRewardChange();
+                editorSounds.save(viewer);
                 plugin.getMessages().send(viewer, "messages.editor-saved", Map.of("target", "reward value"));
             } catch (NumberFormatException exception) {
+                editorSounds.error(viewer);
                 plugin.getMessages().send(viewer, "messages.editor-invalid", Map.of("reason", invalidReason));
             }
-            runForViewer(() -> plugin.getGuiManager().openRewardEditor(viewer, getReward().getId()));
+            runForViewer(() -> plugin.getGuiManager().openRewardEditorSilently(viewer, getReward().getId()));
         }, () -> {
             plugin.getMessages().send(viewer, "messages.editor-cancelled");
-            plugin.getGuiManager().openRewardEditor(viewer, getReward().getId());
+            plugin.getGuiManager().openRewardEditorSilently(viewer, getReward().getId());
         });
     }
 
     private void promptMoney(String prompt, String currentValue, java.util.function.DoubleConsumer consumer, String invalidReason) {
-        EditorDialogInputs.openTextFromInventory(plugin, plugin.getCore().inventoryCloseSuppressor(), plugin.getCore().dialogService(), viewer, editorMoneyRequest(prompt, currentValue), input -> {
+        openEditorInput(editorMoneyRequest(prompt, currentValue), input -> {
             try {
                 consumer.accept(Double.parseDouble(input.trim()));
                 persistCurrentRewardChange();
+                editorSounds.save(viewer);
                 plugin.getMessages().send(viewer, "messages.editor-saved", Map.of("target", "reward value"));
             } catch (NumberFormatException exception) {
+                editorSounds.error(viewer);
                 plugin.getMessages().send(viewer, "messages.editor-invalid", Map.of("reason", invalidReason));
             }
-            runForViewer(() -> plugin.getGuiManager().openRewardEditor(viewer, getReward().getId()));
+            runForViewer(() -> plugin.getGuiManager().openRewardEditorSilently(viewer, getReward().getId()));
         }, () -> {
             plugin.getMessages().send(viewer, "messages.editor-cancelled");
-            plugin.getGuiManager().openRewardEditor(viewer, getReward().getId());
+            plugin.getGuiManager().openRewardEditorSilently(viewer, getReward().getId());
         });
     }
 
     private void promptInt(String prompt, String currentValue, java.util.function.IntConsumer consumer, String invalidReason) {
-        EditorDialogInputs.openTextFromInventory(plugin, plugin.getCore().inventoryCloseSuppressor(), plugin.getCore().dialogService(), viewer, editorNumberRequest(prompt, currentValue), input -> {
+        openEditorInput(editorNumberRequest(prompt, currentValue), input -> {
             try {
                 consumer.accept(Integer.parseInt(input.trim()));
                 persistCurrentRewardChange();
+                editorSounds.save(viewer);
                 plugin.getMessages().send(viewer, "messages.editor-saved", Map.of("target", "reward value"));
             } catch (NumberFormatException exception) {
+                editorSounds.error(viewer);
                 plugin.getMessages().send(viewer, "messages.editor-invalid", Map.of("reason", invalidReason));
             }
-            runForViewer(() -> plugin.getGuiManager().openRewardEditor(viewer, getReward().getId()));
+            runForViewer(() -> plugin.getGuiManager().openRewardEditorSilently(viewer, getReward().getId()));
         }, () -> {
             plugin.getMessages().send(viewer, "messages.editor-cancelled");
-            plugin.getGuiManager().openRewardEditor(viewer, getReward().getId());
+            plugin.getGuiManager().openRewardEditorSilently(viewer, getReward().getId());
         });
     }
 
     private void promptCommands(RewardDefinition reward) {
-        EditorDialogInputs.openTextFromInventory(plugin, plugin.getCore().inventoryCloseSuppressor(), plugin.getCore().dialogService(), viewer, editorCommandRequest(
+        openEditorInput(editorCommandRequest(
             "Enter commands separated by |. Type clear to remove all commands.",
             String.join(" | ", reward.getCommands()),
             "give {player} diamond 1 | say hi"
@@ -284,27 +314,31 @@ public final class RewardEditGui extends BaseGui {
                 reward.setCommands(commands);
             }
             plugin.getMarketService().persistRewardChange(reward.getId(), reward.getId());
+            editorSounds.save(viewer);
             plugin.getMessages().send(viewer, "messages.editor-saved", Map.of("target", "reward commands"));
-            runForViewer(() -> plugin.getGuiManager().openRewardEditor(viewer, reward.getId()));
+            runForViewer(() -> plugin.getGuiManager().openRewardEditorSilently(viewer, reward.getId()));
         }, () -> {
             plugin.getMessages().send(viewer, "messages.editor-cancelled");
-            plugin.getGuiManager().openRewardEditor(viewer, reward.getId());
+            plugin.getGuiManager().openRewardEditorSilently(viewer, reward.getId());
         });
     }
 
     private void assignTopItem(java.util.function.Consumer<ItemStack> consumer, String target, InventoryClickEvent event) {
         if (event.getClick() == ClickType.RIGHT) {
             consumer.accept(null);
+            editorSounds.delete(viewer);
             saveAndRefresh(target);
             return;
         }
 
         ItemStack item = inputItem(event.getCursor());
         if (item == null) {
+            editorSounds.addItemError(viewer);
             plugin.getMessages().send(viewer, "messages.editor-invalid", Map.of("reason", "Hold an item in your main hand first."));
             return;
         }
         consumer.accept(item);
+        editorSounds.addItem(viewer);
         saveAndRefresh(target);
     }
 
@@ -318,7 +352,7 @@ public final class RewardEditGui extends BaseGui {
     private void saveAndRefresh(String target) {
         persistCurrentRewardChange();
         plugin.getMessages().send(viewer, "messages.editor-saved", Map.of("target", target));
-        plugin.getGuiManager().openRewardEditor(viewer, getReward().getId());
+        plugin.getGuiManager().openRewardEditorSilently(viewer, getReward().getId());
     }
 
     private ItemStack createDisplayIconButton(RewardDefinition reward) {

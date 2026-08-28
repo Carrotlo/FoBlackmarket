@@ -3,12 +3,15 @@ package me.foesio.foBlackmarket.gui;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Consumer;
 import me.foesio.core.dialog.DialogButton;
 import me.foesio.core.dialog.TextDialogRequest;
 import me.foesio.core.editor.CursorItemEditor;
+import me.foesio.core.editor.EditorDialogInputs;
 import me.foesio.core.editor.EditorItemFactory;
 import me.foesio.core.gui.GuiButtonConfig;
 import me.foesio.core.gui.GuiSlots;
+import me.foesio.core.sound.FoEditorSounds;
 import me.foesio.core.text.FoText;
 import me.foesio.foBlackmarket.FoBlackmarket;
 import org.bukkit.Bukkit;
@@ -29,17 +32,34 @@ public abstract class BaseGui implements InventoryHolder {
     protected final Player viewer;
     protected final Inventory inventory;
     protected final GuiButtonConfig buttons;
+    protected final FoEditorSounds editorSounds;
 
     protected BaseGui(FoBlackmarket plugin, Player viewer, int size, String title) {
         this.plugin = plugin;
         this.viewer = viewer;
         this.buttons = GuiButtonConfig.defaults();
+        this.editorSounds = plugin.getEditorSounds();
         this.inventory = Bukkit.createInventory(this, size, title);
     }
 
     public void open() {
+        open(true);
+    }
+
+    public void openSilently() {
+        open(false);
+    }
+
+    private void open(boolean playOpenSound) {
         refresh();
         viewer.openInventory(inventory);
+        if (playOpenSound) {
+            openSound();
+        }
+    }
+
+    protected void openSound() {
+        editorSounds.open(viewer);
     }
 
     public void refresh() {
@@ -95,6 +115,29 @@ public abstract class BaseGui implements InventoryHolder {
             false,
             false
         );
+    }
+
+    protected boolean openEditorInput(
+            TextDialogRequest request,
+            Consumer<String> onSubmit,
+            Runnable onCancel
+    ) {
+        boolean openedNative = EditorDialogInputs.openTextFromInventory(
+                plugin,
+                plugin.getCore().inventoryCloseSuppressor(),
+                plugin.getCore().dialogService(),
+                viewer,
+                request,
+                onSubmit,
+                () -> {
+                    editorSounds.back(viewer);
+                    onCancel.run();
+                }
+        );
+        if (openedNative) {
+            editorSounds.open(viewer);
+        }
+        return openedNative;
     }
 
     private TextDialogRequest keepInventoryReopenOnCancel(TextDialogRequest request) {

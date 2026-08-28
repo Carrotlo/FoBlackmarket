@@ -30,6 +30,11 @@ public final class CommandMarketGui extends BaseGui {
     }
 
     @Override
+    protected void openSound() {
+        plugin.getGuiSounds().open(viewer);
+    }
+
+    @Override
     protected void render() {
         fill(plugin.getMarketService().getMarketData().getLayout().getFillerItem());
         rarityIdsBySlot.clear();
@@ -89,8 +94,12 @@ public final class CommandMarketGui extends BaseGui {
 
         String rarityId = rarityIdsBySlot.get(slot);
         if (rarityId != null) {
+            if (rarityId.equals(selectedRarityId)) {
+                return;
+            }
             selectedRarityId = rarityId;
             refresh();
+            plugin.getGuiSounds().select(viewer);
             return;
         }
         if (slot == guiConfig.timerSlot()) {
@@ -104,9 +113,11 @@ public final class CommandMarketGui extends BaseGui {
             if (slot == guiConfig.previousPageSlot() && currentPage > 0) {
                 setOfferPage(selectedRarityId, currentPage - 1);
                 refresh();
+                plugin.getGuiSounds().previousPage(viewer);
             } else if (slot == guiConfig.nextPageSlot() && currentPage < maxPage) {
                 setOfferPage(selectedRarityId, currentPage + 1);
                 refresh();
+                plugin.getGuiSounds().nextPage(viewer);
             }
             return;
         }

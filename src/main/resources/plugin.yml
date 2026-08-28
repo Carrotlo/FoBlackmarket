@@ -10,11 +10,9 @@ commands:
   blackmarket:
     description: Shows black market information
     aliases: [bm, foblackmarket]
-    permission: foblackmarket.use
   foblackmarketadmin:
     description: Admin command for FoBlackmarket
     aliases: [blackmarketadmin, bmadmin]
-    permission: foblackmarket.admin
 
 permissions:
   foblackmarket.use:

@@ -33,13 +33,15 @@ public final class BlackmarketAdminCommand {
             .commandName(ADMIN_COMMAND)
             .permission(ADMIN_PERMISSION)
             .versionCommand(false)
+            .adminSounds(plugin.getAdminSounds())
             .adminMessages(adminMessages())
             .defaultExecutor(ctx -> {
                 ctx.messages().send(ctx.sender(), "messages.invalid-subcommand");
+                plugin.getAdminSounds().updateError(ctx.sender());
                 return true;
             })
             .addSubcommand(versionSubcommand(updateNotices))
-            .addSubcommand(editorSubcommand(guiManager))
+            .addSubcommand(editorSubcommand(plugin, guiManager))
             .addSubcommand(reloadSubcommand(plugin))
             .addSubcommand(restockSubcommand(plugin, marketService))
             .addSubcommand(openGuiSubcommand(plugin, configManager, guiManager))
@@ -67,7 +69,7 @@ public final class BlackmarketAdminCommand {
         }).usage("version").build();
     }
 
-    private static FoAdminSubcommand editorSubcommand(GuiManager guiManager) {
+    private static FoAdminSubcommand editorSubcommand(FoBlackmarket plugin, GuiManager guiManager) {
         return FoAdminSubcommand.builder("editor", ctx -> {
             guiManager.openMainEditor(ctx.playerOrNull());
             return true;
@@ -78,8 +80,14 @@ public final class BlackmarketAdminCommand {
         return FoAdminSubcommand.builder("reload", ctx -> {
             FoReloadResult result = plugin.reloadFiles();
             if (result.successful()) {
+                if (ctx.playerOrNull() != null) {
+                    plugin.getAdminSounds().reload(ctx.playerOrNull());
+                }
                 plugin.getMessages().send(ctx.sender(), "messages.reload-success");
             } else {
+                if (ctx.playerOrNull() != null) {
+                    plugin.getAdminSounds().reloadError(ctx.playerOrNull());
+                }
                 plugin.getMessages().send(ctx.sender(), "messages.reload-failed", Map.of(
                     "step", result.failedStep(),
                     "error", result.errorMessage()
@@ -107,12 +115,14 @@ public final class BlackmarketAdminCommand {
     private static boolean openGui(FoBlackmarket plugin, ConfigManager configManager, GuiManager guiManager, FoAdminCommandContext ctx) {
         if (ctx.subArgs().length < 1) {
             plugin.getMessages().send(ctx.sender(), "messages.invalid-opengui");
+            plugin.getAdminSounds().updateError(ctx.sender());
             return true;
         }
 
         Player target = FoAdminArguments.onlinePlayer().parse(ctx.subArg(0)).orElse(null);
         if (target == null) {
             plugin.getMessages().send(ctx.sender(), "messages.player-not-found");
+            plugin.getAdminSounds().updateError(ctx.sender());
             return true;
         }
 
@@ -121,6 +131,7 @@ public final class BlackmarketAdminCommand {
             plugin.getMessages().send(ctx.sender(), "messages.opengui-success", Map.of("player", target.getName()));
         } else if (result == GuiManager.OpenPlayerMarketResult.COOLDOWN && configManager.shouldSendCooldownFeedback()) {
             plugin.getMessages().send(ctx.sender(), "messages.opengui-cooldown");
+            plugin.getAdminSounds().updateError(ctx.sender());
         }
         return true;
     }

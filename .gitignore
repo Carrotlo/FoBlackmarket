@@ -111,3 +111,5 @@ buildNumber.properties
 
 # Common working directory
 run/
+
+# Local release/support files that should not be published as source.

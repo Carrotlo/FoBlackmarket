@@ -5,7 +5,6 @@ import java.util.Locale;
 import java.util.Map;
 import me.foesio.core.dialog.DialogButton;
 import me.foesio.core.dialog.TextDialogRequest;
-import me.foesio.core.editor.EditorDialogInputs;
 import me.foesio.core.gui.EntryBrowserClick;
 import me.foesio.core.gui.EntryBrowserHolder;
 import me.foesio.core.gui.EntryBrowserMenus;
@@ -40,6 +39,12 @@ public final class RarityListGui extends BaseGui {
     @Override
     public void open() {
         EntryBrowserMenus.open(viewer, request());
+        editorSounds.open(viewer);
+    }
+
+    @Override
+    public void openSilently() {
+        EntryBrowserMenus.open(viewer, request());
     }
 
     @Override
@@ -59,11 +64,11 @@ public final class RarityListGui extends BaseGui {
                 }
             }
             case ADD -> openCreateRarity(holder.request().page(), holder.request().filter());
-            case BACK -> plugin.getGuiManager().openMainEditor(viewer);
-            case SEARCH -> openSearchInput(holder.request().page(), holder.request().filter());
-            case CLEAR_SEARCH -> new RarityListGui(plugin, viewer, 0, "").open();
-            case PREVIOUS_PAGE -> new RarityListGui(plugin, viewer, holder.request().page() - 1, holder.request().filter()).open();
-            case NEXT_PAGE -> new RarityListGui(plugin, viewer, holder.request().page() + 1, holder.request().filter()).open();
+            case BACK -> { editorSounds.back(viewer); plugin.getGuiManager().openMainEditorSilently(viewer); }
+            case SEARCH -> { editorSounds.search(viewer); openSearchInput(holder.request().page(), holder.request().filter()); }
+            case CLEAR_SEARCH -> { editorSounds.clearSearch(viewer); new RarityListGui(plugin, viewer, 0, "").openSilently(); }
+            case PREVIOUS_PAGE -> { editorSounds.previousPage(viewer); new RarityListGui(plugin, viewer, holder.request().page() - 1, holder.request().filter()).openSilently(); }
+            case NEXT_PAGE -> { editorSounds.nextPage(viewer); new RarityListGui(plugin, viewer, holder.request().page() + 1, holder.request().filter()).openSilently(); }
             case EXTRA, NONE -> {
             }
         }
@@ -109,23 +114,15 @@ public final class RarityListGui extends BaseGui {
                 true,
                 false
         );
-        EditorDialogInputs.openTextFromInventory(
-                plugin,
-                plugin.getCore().inventoryCloseSuppressor(),
-                plugin.getCore().dialogService(),
-                viewer,
+        openEditorInput(
                 request,
-                value -> new RarityListGui(plugin, viewer, 0, value).open(),
-                () -> new RarityListGui(plugin, viewer, returnPage, currentFilter).open()
+                value -> new RarityListGui(plugin, viewer, 0, value).openSilently(),
+                () -> new RarityListGui(plugin, viewer, returnPage, currentFilter).openSilently()
         );
     }
 
     private void openCreateRarity(int returnPage, String returnFilter) {
-        EditorDialogInputs.openTextFromInventory(
-                plugin,
-                plugin.getCore().inventoryCloseSuppressor(),
-                plugin.getCore().dialogService(),
-                viewer,
+        openEditorInput(
                 editorTextRequest("Enter a new rarity id.", ""),
                 input -> {
                     String id = input.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9_\\-]", "_").trim();
@@ -141,12 +138,14 @@ public final class RarityListGui extends BaseGui {
                         ));
                         plugin.getMarketService().persistMarketDataWithoutRestock();
                         plugin.getMessages().send(viewer, "messages.editor-saved", Map.of("target", id));
+                        editorSounds.add(viewer);
                         runForViewer(() -> plugin.getGuiManager().openRarityEditor(viewer, id));
                         return;
                     }
-                    runForViewer(() -> new RarityListGui(plugin, viewer, returnPage, returnFilter).open());
+                    editorSounds.error(viewer);
+                    runForViewer(() -> new RarityListGui(plugin, viewer, returnPage, returnFilter).openSilently());
                 },
-                () -> new RarityListGui(plugin, viewer, returnPage, returnFilter).open()
+                () -> new RarityListGui(plugin, viewer, returnPage, returnFilter).openSilently()
         );
     }
 

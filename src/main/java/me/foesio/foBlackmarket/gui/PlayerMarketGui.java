@@ -22,6 +22,11 @@ public final class PlayerMarketGui extends BaseGui {
     }
 
     @Override
+    protected void openSound() {
+        plugin.getGuiSounds().open(viewer);
+    }
+
+    @Override
     protected void render() {
         MarketData marketData = plugin.getMarketService().getMarketData();
         MarketLayout layout = marketData.getLayout();
@@ -68,10 +73,13 @@ public final class PlayerMarketGui extends BaseGui {
 
         PurchaseResult result = plugin.getMarketService().purchase(viewer, slot);
         switch (result.getStatus()) {
-            case SUCCESS -> plugin.getMessages().send(viewer, "messages.market-bought", Map.of(
-                "reward", result.getRewardName(),
-                "stock", String.valueOf(result.getRemainingStock())
-            ));
+            case SUCCESS -> {
+                plugin.getMessages().send(viewer, "messages.market-bought", Map.of(
+                    "reward", result.getRewardName(),
+                    "stock", String.valueOf(result.getRemainingStock())
+                ));
+                plugin.getSounds().play(viewer, "market.purchase-success");
+            }
             case SOLD_OUT -> sendFailedPurchaseFeedback("market-sold-out", Map.of());
             case NOT_ENOUGH_MONEY -> sendFailedPurchaseFeedback("market-not-enough-money", Map.of("price", result.getPriceText()));
             case NOT_ENOUGH_ITEMS -> sendFailedPurchaseFeedback("market-not-enough-items", Map.of());
@@ -119,14 +127,15 @@ public final class PlayerMarketGui extends BaseGui {
     }
 
     private void sendFailedPurchaseFeedback(String path, Map<String, String> placeholders) {
-        if (!plugin.getConfigManager().shouldSendFailedPurchaseFeedback()) {
-            return;
-        }
         if (!plugin.getActionCooldowns().tryAcquire(
             viewer.getUniqueId(),
             FAILURE_FEEDBACK_BUCKET,
             plugin.getConfigManager().getFailedPurchaseFeedbackCooldownMillis()
         )) {
+            return;
+        }
+        plugin.getSounds().play(viewer, "market.purchase-failure");
+        if (!plugin.getConfigManager().shouldSendFailedPurchaseFeedback()) {
             return;
         }
         plugin.getMessages().send(viewer, "messages." + path, placeholders);

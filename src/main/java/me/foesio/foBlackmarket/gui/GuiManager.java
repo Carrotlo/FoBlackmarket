@@ -69,24 +69,48 @@ public final class GuiManager {
         new MainEditorGui(plugin, player).open();
     }
 
+    public void openMainEditorSilently(Player player) {
+        new MainEditorGui(plugin, player).openSilently();
+    }
+
     public void openRewardList(Player player, int page) {
         new RewardListGui(plugin, player, page).open();
+    }
+
+    public void openRewardListSilently(Player player, int page) {
+        new RewardListGui(plugin, player, page).openSilently();
     }
 
     public void openRewardEditor(Player player, String rewardId) {
         new RewardEditGui(plugin, player, rewardId).open();
     }
 
+    public void openRewardEditorSilently(Player player, String rewardId) {
+        new RewardEditGui(plugin, player, rewardId).openSilently();
+    }
+
     public void openRarityList(Player player, int page) {
         new RarityListGui(plugin, player, page).open();
+    }
+
+    public void openRarityListSilently(Player player, int page) {
+        new RarityListGui(plugin, player, page).openSilently();
     }
 
     public void openRarityEditor(Player player, String rarityId) {
         new RarityEditGui(plugin, player, rarityId).open();
     }
 
+    public void openRarityEditorSilently(Player player, String rarityId) {
+        new RarityEditGui(plugin, player, rarityId).openSilently();
+    }
+
     public void openLayoutEditor(Player player) {
         new LayoutEditorGui(plugin, player).open();
+    }
+
+    public void openLayoutEditorSilently(Player player) {
+        new LayoutEditorGui(plugin, player).openSilently();
     }
 
     public void refreshPlayerMarketGuis() {
@@ -105,7 +129,7 @@ public final class GuiManager {
             if (gui.getInventory().getSize() != plugin.getMarketService().getMarketData().getLayout().getSize()) {
                 PlayerMarketGui replacement = new PlayerMarketGui(plugin, player, this);
                 entry.setValue(replacement);
-                replacement.open();
+                replacement.openSilently();
                 continue;
             }
             gui.refresh();
@@ -123,7 +147,7 @@ public final class GuiManager {
             if (gui.getInventory().getSize() != plugin.getGuiConfigManager().commandMarket().size()) {
                 CommandMarketGui replacement = new CommandMarketGui(plugin, player, this);
                 entry.setValue(replacement);
-                replacement.open();
+                replacement.openSilently();
                 continue;
             }
             gui.refresh();
@@ -146,7 +170,7 @@ public final class GuiManager {
             if (gui.getInventory().getSize() != plugin.getMarketService().getMarketData().getLayout().getSize()) {
                 PlayerMarketGui replacement = new PlayerMarketGui(plugin, player, this);
                 entry.setValue(replacement);
-                replacement.open();
+                replacement.openSilently();
                 continue;
             }
             gui.refreshOffer(offer);
@@ -164,7 +188,7 @@ public final class GuiManager {
             if (gui.getInventory().getSize() != plugin.getGuiConfigManager().commandMarket().size()) {
                 CommandMarketGui replacement = new CommandMarketGui(plugin, player, this);
                 entry.setValue(replacement);
-                replacement.open();
+                replacement.openSilently();
                 continue;
             }
             gui.refresh();

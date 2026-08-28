@@ -9,6 +9,10 @@ import me.foesio.core.message.FoMessageMigrations;
 import me.foesio.core.message.FoMessageService;
 import me.foesio.core.reload.FoReloadRegistry;
 import me.foesio.core.reload.FoReloadResult;
+import me.foesio.core.sound.FoAdminSounds;
+import me.foesio.core.sound.FoEditorSounds;
+import me.foesio.core.sound.FoGuiSounds;
+import me.foesio.core.sound.FoSoundService;
 import me.foesio.core.text.FoText;
 import me.foesio.core.update.UpdateNoticeService;
 import me.foesio.foBlackmarket.command.BlackmarketAdminCommand;
@@ -25,6 +29,7 @@ import me.foesio.foBlackmarket.placeholder.PlaceholderApiBridge;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.event.HandlerList;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public final class FoBlackmarket extends JavaPlugin {
@@ -44,6 +49,10 @@ public final class FoBlackmarket extends JavaPlugin {
     private MarketService marketService;
     private ActionCooldowns actionCooldowns;
     private UpdateNoticeService updateNotices;
+    private FoSoundService sounds;
+    private FoEditorSounds editorSounds;
+    private FoGuiSounds guiSounds;
+    private FoAdminSounds adminSounds;
 
     @Override
     public void onEnable() {
@@ -66,7 +75,7 @@ public final class FoBlackmarket extends JavaPlugin {
         this.actionCooldowns = new ActionCooldowns();
         this.guiManager = new GuiManager(this);
         this.marketService = new MarketService(this, configManager, marketRepository, vaultHook, guiManager);
-        this.updateNotices = core.createUpdateNotices(messages, MODRINTH_PROJECT_ID).start();
+        this.updateNotices = core.createUpdateNotices(messages, MODRINTH_PROJECT_ID, adminSounds).start();
 
         getServer().getPluginManager().registerEvents(new GuiListener(this, guiManager), this);
         getServer().getPluginManager().registerEvents(actionCooldowns, this);
@@ -117,6 +126,22 @@ public final class FoBlackmarket extends JavaPlugin {
         return messages;
     }
 
+    public FoSoundService getSounds() {
+        return sounds;
+    }
+
+    public FoEditorSounds getEditorSounds() {
+        return editorSounds;
+    }
+
+    public FoGuiSounds getGuiSounds() {
+        return guiSounds;
+    }
+
+    public FoAdminSounds getAdminSounds() {
+        return adminSounds;
+    }
+
     public ConfigManager getConfigManager() {
         return configManager;
     }
@@ -132,6 +157,10 @@ public final class FoBlackmarket extends JavaPlugin {
             core.close();
         }
         this.core = FoPluginCore.create(this);
+        this.sounds = core.createSounds();
+        this.editorSounds = FoEditorSounds.create(sounds);
+        this.guiSounds = FoGuiSounds.create(sounds);
+        this.adminSounds = FoAdminSounds.create(sounds);
         core.metrics(BSTATS_PLUGIN_ID);
         core.warnIfNativeDialogsUnavailable();
     }
@@ -139,12 +168,22 @@ public final class FoBlackmarket extends JavaPlugin {
     public FoReloadResult reloadFiles() {
         return FoReloadRegistry.create()
             .add("config", configManager::reload)
+            .add("sounds", sounds::reload)
             .addMessages(messages)
             .add("dialog foundation", this::reloadCoreDialogFoundation)
+            .add("admin integrations", this::refreshAdminIntegrations)
             .add("guis", this::reloadGuiConfigManager)
             .add("legacy message cleanup", this::removeLegacyConfigMessageSections)
             .add("market", marketService::reloadFromDisk)
             .reload();
+    }
+
+    private void refreshAdminIntegrations() {
+        if (updateNotices != null) {
+            HandlerList.unregisterAll(updateNotices);
+        }
+        updateNotices = core.createUpdateNotices(messages, MODRINTH_PROJECT_ID, adminSounds).start();
+        registerCommands();
     }
 
     private void registerBlackmarketPlaceholders() {

@@ -3,7 +3,6 @@ package me.foesio.foBlackmarket.gui;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import me.foesio.core.editor.EditorDialogInputs;
 import me.foesio.core.text.FoText;
 import me.foesio.foBlackmarket.FoBlackmarket;
 import me.foesio.foBlackmarket.market.RarityDefinition;
@@ -30,7 +29,7 @@ public final class RarityEditGui extends BaseGui {
     protected void render() {
         RarityDefinition rarity = getRarity();
         if (rarity == null) {
-            plugin.getGuiManager().openRarityList(viewer, 0);
+            plugin.getGuiManager().openRarityListSilently(viewer, 0);
             return;
         }
 
@@ -46,51 +45,61 @@ public final class RarityEditGui extends BaseGui {
     public void handleClick(InventoryClickEvent event) {
         RarityDefinition rarity = getRarity();
         if (rarity == null) {
-            plugin.getGuiManager().openRarityList(viewer, 0);
+            plugin.getGuiManager().openRarityListSilently(viewer, 0);
             return;
         }
 
         switch (event.getRawSlot()) {
             case 10 -> promptRenameId(rarity);
             case 12 -> {
-                EditorDialogInputs.openTextFromInventory(plugin, plugin.getCore().inventoryCloseSuppressor(), plugin.getCore().dialogService(), viewer, editorTextRequest("Enter the rarity display name.", rarity.getDisplayName()), input -> {
+                openEditorInput(editorTextRequest("Enter the rarity display name.", rarity.getDisplayName()), input -> {
                     rarity.setDisplayName(input);
                     plugin.getMarketService().persistMarketDataWithoutRestock();
+                    editorSounds.save(viewer);
                     plugin.getMessages().send(viewer, "messages.editor-saved", Map.of("target", "rarity display name"));
-                    runForViewer(() -> plugin.getGuiManager().openRarityEditor(viewer, rarity.getId()));
+                    runForViewer(() -> plugin.getGuiManager().openRarityEditorSilently(viewer, rarity.getId()));
                 }, () -> {
                     plugin.getMessages().send(viewer, "messages.editor-cancelled");
-                    plugin.getGuiManager().openRarityEditor(viewer, rarity.getId());
+                    plugin.getGuiManager().openRarityEditorSilently(viewer, rarity.getId());
                 });
             }
             case 14 -> {
                 if (event.getClick() == ClickType.RIGHT) {
                     rarity.setIcon(null);
+                    editorSounds.delete(viewer);
                     saveAndRefresh(rarity, "rarity icon");
                     return;
                 }
                 ItemStack item = inputItem(event.getCursor());
                 if (item == null) {
+                    editorSounds.addItemError(viewer);
                     plugin.getMessages().send(viewer, "messages.editor-invalid", Map.of("reason", "Hold an item in your main hand first."));
                     return;
                 }
                 rarity.setIcon(item);
+                editorSounds.addItem(viewer);
                 saveAndRefresh(rarity, "rarity icon");
             }
             case 16 -> {
                 if (!event.getClick().isShiftClick()) {
+                    editorSounds.error(viewer);
                     return;
                 }
                 if (isRarityInUse(rarity.getId())) {
+                    editorSounds.error(viewer);
                     plugin.getMessages().send(viewer, "messages.editor-invalid", Map.of("reason", "That rarity is still used by rewards or layout slots."));
                     return;
                 }
                 plugin.getMarketService().getMarketData().getRarities().remove(rarity.getId());
                 plugin.getMarketService().persistMarketDataWithoutRestock();
+                editorSounds.delete(viewer);
                 plugin.getMessages().send(viewer, "messages.editor-saved", Map.of("target", "rarity deletion"));
-                plugin.getGuiManager().openRarityList(viewer, 0);
+                plugin.getGuiManager().openRarityListSilently(viewer, 0);
             }
-            case 22 -> plugin.getGuiManager().openRarityList(viewer, 0);
+            case 22 -> {
+                editorSounds.back(viewer);
+                plugin.getGuiManager().openRarityListSilently(viewer, 0);
+            }
             default -> {
             }
         }
@@ -105,6 +114,7 @@ public final class RarityEditGui extends BaseGui {
         ItemStack item = inputItem(event.getOldCursor());
         if (rarity != null && item != null) {
             rarity.setIcon(item);
+            editorSounds.addItem(viewer);
             saveAndRefresh(rarity, "rarity icon");
         }
     }
@@ -119,11 +129,13 @@ public final class RarityEditGui extends BaseGui {
     }
 
     private void promptRenameId(RarityDefinition rarity) {
-        EditorDialogInputs.openTextFromInventory(plugin, plugin.getCore().inventoryCloseSuppressor(), plugin.getCore().dialogService(), viewer, editorTextRequest("Enter the new rarity id.", rarity.getId()), input -> {
+        openEditorInput(editorTextRequest("Enter the new rarity id.", rarity.getId()), input -> {
             String id = input.toLowerCase().replaceAll("[^a-z0-9_\\-]", "_").trim();
             if (id.isBlank()) {
+                editorSounds.error(viewer);
                 plugin.getMessages().send(viewer, "messages.editor-invalid", Map.of("reason", "Rarity ids must contain letters or numbers."));
             } else if (!id.equalsIgnoreCase(rarity.getId()) && plugin.getMarketService().getMarketData().getRarities().containsKey(id)) {
+                editorSounds.error(viewer);
                 plugin.getMessages().send(viewer, "messages.editor-invalid", Map.of("reason", "That rarity id already exists."));
             } else {
                 plugin.getMarketService().getMarketData().getRarities().remove(rarity.getId());
@@ -142,14 +154,15 @@ public final class RarityEditGui extends BaseGui {
                     }
                 }
                 plugin.getMarketService().persistMarketDataWithoutRestock();
+                editorSounds.save(viewer);
                 plugin.getMessages().send(viewer, "messages.editor-saved", Map.of("target", "rarity id"));
-                runForViewer(() -> plugin.getGuiManager().openRarityEditor(viewer, id));
+                runForViewer(() -> plugin.getGuiManager().openRarityEditorSilently(viewer, id));
                 return;
             }
-            runForViewer(() -> plugin.getGuiManager().openRarityEditor(viewer, rarity.getId()));
+            runForViewer(() -> plugin.getGuiManager().openRarityEditorSilently(viewer, rarity.getId()));
         }, () -> {
             plugin.getMessages().send(viewer, "messages.editor-cancelled");
-            plugin.getGuiManager().openRarityEditor(viewer, rarity.getId());
+            plugin.getGuiManager().openRarityEditorSilently(viewer, rarity.getId());
         });
     }
 
@@ -168,7 +181,7 @@ public final class RarityEditGui extends BaseGui {
     private void saveAndRefresh(RarityDefinition rarity, String target) {
         plugin.getMarketService().persistMarketDataWithoutRestock();
         plugin.getMessages().send(viewer, "messages.editor-saved", Map.of("target", target));
-        plugin.getGuiManager().openRarityEditor(viewer, rarity.getId());
+        plugin.getGuiManager().openRarityEditorSilently(viewer, rarity.getId());
     }
 
     private ItemStack createIconButton(RarityDefinition rarity) {

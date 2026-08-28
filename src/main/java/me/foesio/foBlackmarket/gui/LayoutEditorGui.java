@@ -5,7 +5,6 @@ import java.util.List;
 import java.util.Map;
 import me.foesio.core.editor.CycleOption;
 import me.foesio.core.editor.CycleOptions;
-import me.foesio.core.editor.EditorDialogInputs;
 import me.foesio.core.text.FoText;
 import me.foesio.foBlackmarket.FoBlackmarket;
 import me.foesio.foBlackmarket.market.MarketLayout;
@@ -70,7 +69,8 @@ public final class LayoutEditorGui extends BaseGui {
         }
 
         if (slot == bottomMiddleSlot(ROWS)) {
-            plugin.getGuiManager().openMainEditor(viewer);
+            editorSounds.back(viewer);
+            plugin.getGuiManager().openMainEditorSilently(viewer);
             return;
         }
 
@@ -103,15 +103,18 @@ public final class LayoutEditorGui extends BaseGui {
             case 48 -> {
                 if (event.isRightClick()) {
                     layout.setFillerItem(null);
+                    editorSounds.delete(viewer);
                     saveAndReopen("layout filler");
                     return;
                 }
                 ItemStack item = inputItem(event.getCursor());
                 if (item == null) {
+                    editorSounds.addItemError(viewer);
                     plugin.getMessages().send(viewer, "messages.editor-invalid", Map.of("reason", "Hold an item in your main hand first."));
                     return;
                 }
                 layout.setFillerItem(item);
+                editorSounds.addItem(viewer);
                 saveAndReopen("layout filler");
             }
             default -> {
@@ -125,6 +128,7 @@ public final class LayoutEditorGui extends BaseGui {
             ItemStack item = inputItem(event.getOldCursor());
             if (item != null) {
                 plugin.getMarketService().getMarketData().getLayout().setFillerItem(item);
+                editorSounds.addItem(viewer);
                 saveAndReopen("layout filler");
             }
         }
@@ -140,12 +144,14 @@ public final class LayoutEditorGui extends BaseGui {
         Map<Integer, String> slotRarities = layout.getSlotRarities();
         if (clear) {
             slotRarities.remove(slot);
+            editorSounds.delete(viewer);
             saveAndReopen("layout slot");
             return;
         }
 
         List<String> rarityIds = new ArrayList<>(plugin.getMarketService().getMarketData().getRarities().keySet());
         if (rarityIds.isEmpty()) {
+            editorSounds.error(viewer);
             plugin.getMessages().send(viewer, "messages.editor-invalid", Map.of("reason", "Create a rarity first."));
             return;
         }
@@ -153,29 +159,32 @@ public final class LayoutEditorGui extends BaseGui {
         int index = current == null ? -1 : rarityIds.indexOf(current);
         String next = rarityIds.get((index + 1 + rarityIds.size()) % rarityIds.size());
         slotRarities.put(slot, next);
+        editorSounds.cycle(viewer);
         saveAndReopen("layout slot");
     }
 
     private void promptSlotValue(String prompt, String currentValue, java.util.function.IntConsumer consumer, String invalidReason) {
-        EditorDialogInputs.openTextFromInventory(plugin, plugin.getCore().inventoryCloseSuppressor(), plugin.getCore().dialogService(), viewer, editorNumberRequest(prompt, currentValue), input -> {
+        openEditorInput(editorNumberRequest(prompt, currentValue), input -> {
             try {
                 consumer.accept(Integer.parseInt(input.trim()));
                 plugin.getMarketService().persistMarketData(false);
+                editorSounds.save(viewer);
                 plugin.getMessages().send(viewer, "messages.editor-saved", Map.of("target", "layout"));
             } catch (NumberFormatException exception) {
+                editorSounds.error(viewer);
                 plugin.getMessages().send(viewer, "messages.editor-invalid", Map.of("reason", invalidReason));
             }
-            runForViewer(() -> plugin.getGuiManager().openLayoutEditor(viewer));
+            runForViewer(() -> plugin.getGuiManager().openLayoutEditorSilently(viewer));
         }, () -> {
             plugin.getMessages().send(viewer, "messages.editor-cancelled");
-            plugin.getGuiManager().openLayoutEditor(viewer);
+            plugin.getGuiManager().openLayoutEditorSilently(viewer);
         });
     }
 
     private void saveAndReopen(String target) {
         plugin.getMarketService().persistMarketData(false);
         plugin.getMessages().send(viewer, "messages.editor-saved", Map.of("target", target));
-        plugin.getGuiManager().openLayoutEditor(viewer);
+        plugin.getGuiManager().openLayoutEditorSilently(viewer);
     }
 
     private ItemStack createLayoutSlotButton(List<String> rarityIds, String rarityId, RarityDefinition rarity) {

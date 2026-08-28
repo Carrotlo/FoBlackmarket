@@ -181,6 +181,11 @@ public final class MarketService {
         }
 
         guiManager.refreshPlayerMarketGuis();
+        if (broadcast) {
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                plugin.getSounds().play(player, "market.restock");
+            }
+        }
         if (broadcast && configManager.isAnnounceRestocks()) {
             Bukkit.broadcastMessage(plugin.getMessages().render("messages.market-restocked-broadcast", "", Map.of(
                 "time_remaining", configManager.formatDuration(getTimeUntilRestock())

@@ -1,7 +1,6 @@
 package me.foesio.foBlackmarket.gui;
 
 import java.util.Map;
-import me.foesio.core.editor.EditorDialogInputs;
 import me.foesio.core.number.DurationParser;
 import me.foesio.core.number.TickDuration;
 import me.foesio.foBlackmarket.FoBlackmarket;
@@ -58,31 +57,31 @@ public final class MainEditorGui extends BaseGui {
         int slot = event.getRawSlot();
         switch (slot) {
             case 10 -> {
-                EditorDialogInputs.openTextFromInventory(
-                    plugin,
-                    plugin.getCore().inventoryCloseSuppressor(),
-                    plugin.getCore().dialogService(),
-                    viewer,
+                openEditorInput(
                     editorTextRequest("Enter the restock interval. Use minutes or a duration like 45m, 1h30m, or 2d.", formatRestockInterval()),
                     input -> {
                         Long minutes = parseRestockIntervalMinutes(input);
                         if (minutes != null) {
                             plugin.getConfigManager().setRestockIntervalMinutes(minutes);
                             plugin.getMarketService().rescheduleRestockFromNow();
+                            editorSounds.save(viewer);
                             plugin.getMessages().send(viewer, "messages.editor-saved", Map.of("target", "restock interval"));
                         } else {
+                            editorSounds.error(viewer);
                             plugin.getMessages().send(viewer, "messages.editor-invalid", Map.of("reason", "Use a whole-minute duration like 30m, 1h, 1h30m, or 2d."));
                         }
-                        runForViewer(() -> plugin.getGuiManager().openMainEditor(viewer));
+                        runForViewer(() -> plugin.getGuiManager().openMainEditorSilently(viewer));
                     },
                     () -> {
                         plugin.getMessages().send(viewer, "messages.editor-cancelled");
-                        plugin.getGuiManager().openMainEditor(viewer);
+                        plugin.getGuiManager().openMainEditorSilently(viewer);
                     }
                 );
             }
             case 11 -> {
-                plugin.getConfigManager().setAnnounceRestocks(!plugin.getConfigManager().isAnnounceRestocks());
+                boolean enabled = !plugin.getConfigManager().isAnnounceRestocks();
+                plugin.getConfigManager().setAnnounceRestocks(enabled);
+                editorSounds.toggle(viewer, enabled);
                 plugin.getMessages().send(viewer, "messages.editor-saved", Map.of("target", "restock broadcast"));
                 refresh();
             }
