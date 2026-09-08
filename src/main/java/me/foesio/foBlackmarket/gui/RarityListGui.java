@@ -86,7 +86,8 @@ public final class RarityListGui extends BaseGui {
                 .filter(filter)
                 .buttons(buttons)
                 .showBack(true)
-                .addButton(item(Material.ANVIL, "#03fc88Create Rarity", "#ffffffClick to create a new rarity."))
+                .addButton(button(Material.ANVIL, "#03fc88", "Create Rarity",
+                    List.of("Click to create a new rarity."), "create a rarity"))
                 .context(new RarityBrowserContext())
                 .build();
     }

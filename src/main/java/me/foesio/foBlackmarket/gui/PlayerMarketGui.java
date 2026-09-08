@@ -33,7 +33,7 @@ public final class PlayerMarketGui extends BaseGui {
         GuiConfigManager.PlayerMarketGuiConfig guiConfig = plugin.getGuiConfigManager().playerMarket();
         fill(layout.getFillerItem());
 
-        inventory.setItem(layout.getInfoSlot(), guiConfig.infoItem().toItem(plugin.getMessages(), Map.of(
+        inventory.setItem(layout.getInfoSlot(), guiConfig.infoItem().toItem(plugin.getMessages(), viewer, Map.of(
             "time_remaining", plugin.getConfigManager().formatDuration(plugin.getMarketService().getTimeUntilRestock())
         )));
 

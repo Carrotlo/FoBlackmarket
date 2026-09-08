@@ -1,7 +1,7 @@
 # Public player market GUI.
 # Slots and filler item are still controlled by market.yml so existing market layouts keep working.
 # Placeholders: {time_remaining}
-title: "&8Black Market"
+title: "&8ʙʟᴀᴄᴋ ᴍᴀʀᴋᴇᴛ"
 
 items:
   info:

@@ -36,11 +36,15 @@ public final class RewardEditGui extends BaseGui {
             return;
         }
 
-        inventory.setItem(10, item(Material.NAME_TAG, "#03fc88Reward ID", "#ffffffCurrent: #03fc88" + reward.getId(), "#ffffffClick to rename."));
-        inventory.setItem(11, item(Material.WRITABLE_BOOK, "#03fc88Display Name", "#ffffffCurrent: " + reward.getDisplayName(), "#ffffffClick to edit."));
+        inventory.setItem(10, button(Material.NAME_TAG, "#03fc88", "Reward ID",
+            List.of("Current: " + reward.getId(), "Click to rename."), "rename the reward"));
+        inventory.setItem(11, button(Material.WRITABLE_BOOK, "#03fc88", "Display Name",
+            List.of("Current: " + reward.getDisplayName(), "Click to edit."), "edit the display name"));
         inventory.setItem(12, createRarityButton(reward));
-        inventory.setItem(13, item(Material.GOLD_NUGGET, "#03fc88Chance", "#ffffffCurrent: #03fc88" + reward.getChance(), "#ffffffClick to edit."));
-        inventory.setItem(14, item(Material.BARREL, "#03fc88Stock", "#ffffffCurrent: #03fc88" + reward.getStock(), "#ffffffClick to edit."));
+        inventory.setItem(13, button(Material.GOLD_NUGGET, "#03fc88", "Chance",
+            List.of("Current: " + reward.getChance(), "Click to edit."), "edit the chance"));
+        inventory.setItem(14, button(Material.BARREL, "#03fc88", "Stock",
+            List.of("Current: " + reward.getStock(), "Click to edit."), "edit the stock"));
 
         inventory.setItem(15, createCostTypeButton(reward));
         inventory.setItem(16, createCostButton(reward));
@@ -48,17 +52,16 @@ public final class RewardEditGui extends BaseGui {
         inventory.setItem(19, createDisplayIconButton(reward));
         inventory.setItem(20, createRewardItemButton(reward));
         inventory.setItem(21, createCommandButton(reward));
-        inventory.setItem(22, item(
-            Material.BOOK,
-            "#03fc88Preview",
-            "#ffffffRarity: #03fc88" + reward.getRarityId(),
-            "#ffffffStock Mode: #03fc88" + reward.getStockMode().getDisplayName(),
-            "#ffffffCost: #03fc88" + plugin.getMarketService().describeCost(reward),
-            "#ffffffCommands: #03fc88" + reward.getCommands().size()
-        ));
+        inventory.setItem(22, button(Material.BOOK, "#03fc88", "Preview", List.of(
+            "Rarity: " + reward.getRarityId(),
+            "Stock Mode: " + reward.getStockMode().getDisplayName(),
+            "Cost: " + plugin.getMarketService().describeCost(reward),
+            "Commands: " + reward.getCommands().size()
+        ), "view the preview"));
         inventory.setItem(23, createStockModeButton(reward));
-        inventory.setItem(24, item(Material.LAVA_BUCKET, "#ff5d73Delete Reward", "#ffffffShift-click to delete this reward set."));
-        inventory.setItem(bottomMiddleSlot(ROWS), buttons.back());
+        inventory.setItem(24, button(Material.LAVA_BUCKET, "#ff5d73", "Delete Reward",
+            List.of("Shift-click to delete this reward set."), "open confirmation"));
+        inventory.setItem(bottomMiddleSlot(ROWS), buttons.back(viewer));
         fillEditorBackground();
     }
 
@@ -365,57 +368,44 @@ public final class RewardEditGui extends BaseGui {
 
     private ItemStack createRarityButton(RewardDefinition reward) {
         List<String> rarityIds = new ArrayList<>(plugin.getMarketService().getMarketData().getRarities().keySet());
-        List<String> lore = new ArrayList<>();
-        lore.add("#ffffffCurrent: #03fc88" + reward.getRarityId());
-        lore.add("#ffffffClick to cycle rarities.");
-        if (rarityIds.isEmpty()) {
-            lore.add("#a7b8b0No rarities configured.");
-        } else {
-            lore.addAll(CycleOptions.lore(
+        List<String> information = rarityIds.isEmpty()
+            ? List.of("#ff5d73No rarities configured.")
+            : CycleOptions.information(
                 plugin.getMessages(),
                 reward.getRarityId(),
                 rarityIds.stream()
                     .map(id -> new CycleOption(id, id))
                     .toList()
-            ));
-        }
-        return item(Material.NETHER_STAR, "#03fc88Rarity", lore);
+            );
+        return button(Material.NETHER_STAR, "#03fc88", "Rarity", information, "cycle the rarity");
     }
 
     private ItemStack createCostTypeButton(RewardDefinition reward) {
         CostType type = reward.getCost().getType();
-        List<String> lore = new ArrayList<>();
-        String selected = costTypeDisplayName(type);
-        lore.add("#ffffffCurrent: #03fc88" + selected);
-        lore.add("#ffffffClick to cycle.");
-        lore.addAll(CycleOptions.lore(plugin.getMessages(), type.name(), List.of(
+        List<String> information = CycleOptions.information(plugin.getMessages(), type.name(), List.of(
             new CycleOption(CostType.MONEY.name(), "Money"),
             new CycleOption(CostType.ITEM.name(), "Item"),
             new CycleOption(CostType.BOTH.name(), "Both")
-        )));
-        return item(costTypeMaterial(type), "#03fc88Cost Type", lore);
+        ));
+        return button(costTypeMaterial(type), "#03fc88", "Cost Type", information, "cycle the cost type");
     }
 
     private ItemStack createStockModeButton(RewardDefinition reward) {
         StockMode stockMode = reward.getStockMode();
-        List<String> lore = new ArrayList<>();
-        lore.add("#ffffffCurrent: #03fc88" + stockMode.getDisplayName());
-        lore.add("#ffffffClick to cycle.");
-        lore.addAll(CycleOptions.lore(plugin.getMessages(), stockMode.name(), List.of(
+        List<String> information = CycleOptions.information(plugin.getMessages(), stockMode.name(), List.of(
             new CycleOption(StockMode.SERVER_WIDE.name(), StockMode.SERVER_WIDE.getDisplayName()),
             new CycleOption(StockMode.PER_PLAYER.name(), StockMode.PER_PLAYER.getDisplayName())
-        )));
-        return item(stockMode == StockMode.SERVER_WIDE ? Material.ENDER_CHEST : Material.PLAYER_HEAD, "#03fc88Stock Mode", lore);
+        ));
+        return button(stockMode == StockMode.SERVER_WIDE ? Material.ENDER_CHEST : Material.PLAYER_HEAD,
+            "#03fc88", "Stock Mode", information, "cycle the stock mode");
     }
 
     private ItemStack createCostButton(RewardDefinition reward) {
         if (reward.getCost().getType() == CostType.MONEY) {
-            return item(
-                Material.EMERALD,
-                "#03fc88Cost Value",
-                "#ffffffCurrent: #03fc88" + plugin.getMarketService().describeCost(reward),
-                "#ffffffClick to edit the money cost."
-            );
+            return button(Material.EMERALD, "#03fc88", "Cost Value", List.of(
+                "Current: " + plugin.getMarketService().describeCost(reward),
+                "Click to edit the money cost."
+            ), "edit the money cost");
         }
         if (reward.getCost().getType() == CostType.ITEM) {
             return createEditorItemButton(Material.ITEM_FRAME, "#03fc88Item Cost", reward.getCost().getItemCost(), true);
@@ -431,7 +421,7 @@ public final class RewardEditGui extends BaseGui {
         lore.add("#ffffffClick with empty hand to edit money.");
         lore.add("#ffffffRight click to clear the item cost.");
         lore.add("#ffffffShift-click with empty hand to clear the money cost.");
-        return item(Material.CRAFTER, "#03fc88Money + Item Cost", lore);
+        return button(Material.CRAFTER, "#03fc88", "Money + Item Cost", lore, "edit the item cost");
     }
 
     private ItemStack createCommandButton(RewardDefinition reward) {
@@ -447,7 +437,7 @@ public final class RewardEditGui extends BaseGui {
                 lore.add("#ffffff- #a7b8b0" + command);
             }
         }
-        return item(Material.COMMAND_BLOCK, "#03fc88Commands", lore);
+        return button(Material.COMMAND_BLOCK, "#03fc88", "Commands", lore, "edit commands");
     }
 
     private ItemStack createEditorItemButton(Material material, String title, ItemStack current, boolean itemCost) {

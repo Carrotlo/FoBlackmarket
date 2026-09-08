@@ -9,6 +9,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import me.foesio.core.dialog.DialogIcons;
 import me.foesio.core.gui.GuiTitles;
 import me.foesio.core.message.FoMessageService;
 import me.foesio.foBlackmarket.FoBlackmarket;
@@ -18,6 +20,7 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.enchantments.Enchantment;
+import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -55,22 +58,67 @@ public final class GuiConfigManager {
 
     private void ensureGuiFile(String resourcePath, FileConfiguration oldConfig) {
         File file = new File(plugin.getDataFolder(), resourcePath);
+        boolean created = false;
         if (file.exists()) {
-            return;
-        }
-
-        plugin.saveResource(resourcePath, false);
-        if (oldConfig == null || !oldConfig.contains("titles.market")) {
-            return;
+            created = false;
+        } else {
+            plugin.saveResource(resourcePath, false);
+            created = true;
         }
 
         YamlConfiguration migrated = YamlConfiguration.loadConfiguration(file);
-        migrated.set("title", oldConfig.getString("titles.market", "&8Black Market"));
+        boolean changed = false;
+        if (oldConfig != null && oldConfig.contains("titles.market")) {
+            migrated.set("title", oldConfig.getString("titles.market", "&8Black Market"));
+            changed = true;
+        }
+        if (!created && COMMAND_MARKET_RESOURCE.equals(resourcePath)) {
+            changed |= migrateCommandMarketStyle(migrated);
+        }
+        if (!changed) {
+            return;
+        }
         try {
             migrated.save(file);
         } catch (IOException exception) {
             plugin.getLogger().warning("FoBlackmarket: Could not migrate old market title into " + resourcePath + ": " + exception.getMessage());
         }
+    }
+
+    private boolean migrateCommandMarketStyle(YamlConfiguration config) {
+        boolean changed = false;
+        changed |= replaceExact(config, "items.timer.name", "#03fc88Market Reset", ":clock: {theme}&lMARKET RESET");
+        changed |= replaceExact(config, "items.timer.lore", List.of(
+            "#ffffffTime until reset:",
+            "#03fc88{time_remaining}",
+            "#ffffffSelected rarity: {selected_rarity}",
+            "{showing_offers}"
+        ), List.of(
+            "&8ɪɴꜰᴏ",
+            " ",
+            "&eⓘ Information ↓",
+            "&7&l | &fTime until reset: {theme}{time_remaining}",
+            "&7&l | &fSelected rarity: {theme}{selected_rarity}",
+            "&7&l | &f{showing_offers}"
+        ));
+        changed |= replaceExact(config, "rarity-item.lore", List.of(
+            "#ffffffOffers: #03fc88{offer_count}",
+            "{selection_status}"
+        ), List.of(
+            "Offers: {offer_count}",
+            "{selection_status}"
+        ));
+        changed |= replaceExact(config, "rarity-item.selected", "#3ecf8eSelected", "Selected");
+        changed |= replaceExact(config, "rarity-item.unselected", "#a7b8b0Click to view this rarity.", "Click to view this rarity.");
+        return changed;
+    }
+
+    private boolean replaceExact(YamlConfiguration config, String path, Object oldValue, Object newValue) {
+        if (!Objects.equals(config.get(path), oldValue)) {
+            return false;
+        }
+        config.set(path, newValue);
+        return true;
     }
 
     private PlayerMarketGuiConfig loadPlayerMarket() {
@@ -316,19 +364,22 @@ public final class GuiConfigManager {
         Integer customModelData,
         List<ItemFlag> itemFlags
     ) {
-        public ItemStack toItem(FoMessageService messages, Map<String, String> placeholders) {
+        public ItemStack toItem(FoMessageService messages, Player viewer, Map<String, String> placeholders) {
             ItemStack item = new ItemStack(material, amount);
             ItemMeta meta = item.getItemMeta();
             if (meta != null) {
-                meta.setDisplayName(messages.renderTemplate(name, placeholders));
+                String renderedName = render(messages, viewer, name, placeholders);
                 List<String> renderedLore = new ArrayList<>();
                 for (String line : lore) {
-                    String rendered = messages.renderTemplate(line, placeholders);
+                    String rendered = render(messages, viewer, line, placeholders);
                     if (!rendered.isBlank()) {
                         renderedLore.add(rendered);
                     }
                 }
-                meta.setLore(renderedLore);
+                if (!DialogIcons.applyItemMeta(meta, viewer, renderedName, renderedLore)) {
+                    meta.setDisplayName(DialogIcons.fallbackText(renderedName));
+                    meta.setLore(renderedLore.stream().map(DialogIcons::fallbackText).toList());
+                }
                 if (customModelData != null) {
                     meta.setCustomModelData(customModelData);
                 }
@@ -347,6 +398,12 @@ public final class GuiConfigManager {
                 }
             }
             return item;
+        }
+
+        private static String render(FoMessageService messages, Player viewer, String template, Map<String, String> placeholders) {
+            return viewer == null
+                ? messages.renderTemplate(template, placeholders)
+                : messages.renderTemplateForViewer(viewer, template, placeholders);
         }
     }
 }

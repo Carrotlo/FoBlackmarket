@@ -1,6 +1,7 @@
 package me.foesio.foBlackmarket.gui;
 
 import java.util.Map;
+import java.util.List;
 import me.foesio.core.number.DurationParser;
 import me.foesio.core.number.TickDuration;
 import me.foesio.foBlackmarket.FoBlackmarket;
@@ -16,39 +17,22 @@ public final class MainEditorGui extends BaseGui {
 
     @Override
     protected void render() {
-        inventory.setItem(10, item(
-            Material.CLOCK,
-            "#03fc88Restock Interval",
-            "#ffffffCurrent: #03fc88" + formatRestockInterval(),
-            "#ffffffClick to edit.",
-            "#a7b8b0Examples: 45m, 1h30m, 2d."
-        ));
-        inventory.setItem(11, item(
-            plugin.getConfigManager().isAnnounceRestocks() ? Material.LIME_DYE : Material.RED_DYE,
-            plugin.getConfigManager().isAnnounceRestocks() ? "#3ecf8eRestock Broadcasts Enabled" : "#ff5d73Restock Broadcasts Disabled",
-            "#ffffffClick to toggle the broadcast."
-        ));
-        inventory.setItem(12, item(
-            Material.CHEST,
-            "#03fc88Reward Sets",
-            "#ffffffCreate and edit reward sets.",
-            "#ffffffStock, cost, commands, chance, item."
-        ));
-        inventory.setItem(13, item(
-            Material.NETHER_STAR,
-            "#03fc88Rarities",
-            "#ffffffEdit rarity ids, names and icons."
-        ));
-        inventory.setItem(14, item(
-            Material.ITEM_FRAME,
-            "#03fc88Market Layout",
-            "#ffffffEdit the live player market GUI."
-        ));
-        inventory.setItem(15, item(
-            Material.HOPPER,
-            "#03fc88Restock Now",
-            "#ffffffImmediately reroll active stock."
-        ));
+        inventory.setItem(10, button(Material.CLOCK, "#03fc88", "Restock Interval", List.of(
+            "Current: " + formatRestockInterval(),
+            "Examples: 45m, 1h30m, 2d."
+        ), "edit the restock interval"));
+        boolean announceRestocks = plugin.getConfigManager().isAnnounceRestocks();
+        inventory.setItem(11, me.foesio.core.editor.EditorItemFactory.toggle(viewer, "Restock Broadcasts", announceRestocks));
+        inventory.setItem(12, button(Material.CHEST, "#03fc88", "Reward Sets", List.of(
+            "Create and edit reward sets.",
+            "Stock, cost, commands, chance, item."
+        ), "manage reward sets"));
+        inventory.setItem(13, button(Material.NETHER_STAR, "#03fc88", "Rarities",
+            List.of("Edit rarity ids, names and icons."), "manage rarities"));
+        inventory.setItem(14, button(Material.ITEM_FRAME, "#03fc88", "Market Layout",
+            List.of("Edit the live player market GUI."), "edit the market layout"));
+        inventory.setItem(15, button(Material.HOPPER, "#03fc88", "Restock Now",
+            List.of("Immediately reroll active stock."), "restock now"));
         fillEditorBackground();
     }
 

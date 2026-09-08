@@ -33,11 +33,14 @@ public final class RarityEditGui extends BaseGui {
             return;
         }
 
-        inventory.setItem(10, item(Material.NAME_TAG, "#03fc88Rarity ID", "#ffffffCurrent: #03fc88" + rarity.getId(), "#ffffffClick to rename."));
-        inventory.setItem(12, item(Material.WRITABLE_BOOK, "#03fc88Display Name", "#ffffffCurrent: " + rarity.getDisplayName(), "#ffffffClick to edit."));
+        inventory.setItem(10, button(Material.NAME_TAG, "#03fc88", "Rarity ID",
+            List.of("Current: " + rarity.getId(), "Click to rename."), "rename the rarity"));
+        inventory.setItem(12, button(Material.WRITABLE_BOOK, "#03fc88", "Display Name",
+            List.of("Current: " + rarity.getDisplayName(), "Click to edit."), "edit the display name"));
         inventory.setItem(14, createIconButton(rarity));
-        inventory.setItem(16, item(Material.LAVA_BUCKET, "#ff5d73Delete Rarity", "#ffffffShift-click to delete this rarity.", "#ffffffDeletion is blocked if it is still in use."));
-        inventory.setItem(bottomMiddleSlot(ROWS), buttons.back());
+        inventory.setItem(16, button(Material.LAVA_BUCKET, "#ff5d73", "Delete Rarity",
+            List.of("Shift-click to delete this rarity.", "Deletion is blocked if it is still in use."), "open confirmation"));
+        inventory.setItem(bottomMiddleSlot(ROWS), buttons.back(viewer));
         fillEditorBackground();
     }
 

@@ -12,8 +12,12 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import me.foesio.core.command.CommandPlaceholders;
+import me.foesio.core.dialog.DialogIcons;
+import me.foesio.core.gui.FoButtonStyle;
 import me.foesio.core.inventory.InventoryDepositResult;
 import me.foesio.core.inventory.OverflowPolicy;
+import me.foesio.core.message.FoStyle;
+import me.foesio.core.text.FoText;
 import me.foesio.foBlackmarket.FoBlackmarket;
 import me.foesio.foBlackmarket.config.ConfigManager;
 import me.foesio.foBlackmarket.gui.GuiManager;
@@ -187,9 +191,9 @@ public final class MarketService {
             }
         }
         if (broadcast && configManager.isAnnounceRestocks()) {
-            Bukkit.broadcastMessage(plugin.getMessages().render("messages.market-restocked-broadcast", "", Map.of(
+            plugin.getMessages().broadcastConfigured("messages.market-restocked-broadcast", Map.of(
                 "time_remaining", configManager.formatDuration(getTimeUntilRestock())
-            )));
+            ));
         }
     }
 
@@ -742,7 +746,7 @@ public final class MarketService {
             int remainingStock = offer.getRemainingStock(viewer == null ? null : viewer.getUniqueId());
             String commandsLine = offer.getReward().getCommands().isEmpty()
                 ? ""
-                : plugin.getMessages().renderTemplate(guiConfig.commandsLine(), Map.of("commands", String.valueOf(offer.getReward().getCommands().size())));
+                : renderGuiText(viewer, guiConfig.commandsLine(), Map.of("commands", String.valueOf(offer.getReward().getCommands().size())));
             Map<String, String> placeholders = new LinkedHashMap<>();
             placeholders.put("reward", offer.getReward().getDisplayName());
             placeholders.put("reward_id", offer.getRewardId());
@@ -754,19 +758,39 @@ public final class MarketService {
             placeholders.put("chance", trimChance(offer.getReward().getChance()));
             placeholders.put("commands", String.valueOf(offer.getReward().getCommands().size()));
             placeholders.put("commands_line", commandsLine);
-            placeholders.put("status_line", remainingStock > 0 ? guiConfig.buyLine() : guiConfig.soldOutLine());
-            meta.setDisplayName(plugin.getMessages().renderTemplate(guiConfig.offerName(), placeholders));
-            List<String> lore = new ArrayList<>();
+            String statusLine = remainingStock > 0 ? guiConfig.buyLine() : guiConfig.soldOutLine();
+            String renderedStatusLine = renderGuiText(viewer, statusLine, placeholders);
+            placeholders.put("status_line", renderedStatusLine);
+
+            String renderedName = renderGuiText(viewer, guiConfig.offerName(), placeholders);
+            String buttonName = DialogIcons.withMaterialIcon(
+                FoButtonStyle.buttonName(FoStyle.THEME, renderedName),
+                icon.getType()
+            );
+            List<String> information = new ArrayList<>();
             for (String line : guiConfig.offerLore()) {
-                String rendered = plugin.getMessages().renderTemplate(line, placeholders);
-                if (!rendered.isBlank()) {
-                    lore.add(rendered);
+                String rendered = renderGuiText(viewer, line, placeholders);
+                if (!rendered.isBlank() && !rendered.equals(renderedStatusLine)) {
+                    information.add(rendered);
                 }
             }
-            meta.setLore(lore);
+            List<String> lore = FoButtonStyle.buttonLore(
+                information,
+                remainingStock > 0 ? "buy" : "try again later"
+            );
+            if (!DialogIcons.applyItemMeta(meta, viewer, buttonName, lore)) {
+                meta.setDisplayName(FoText.color(DialogIcons.fallbackText(buttonName)));
+                meta.setLore(FoText.color(lore.stream().map(DialogIcons::fallbackText).toList()));
+            }
             icon.setItemMeta(meta);
         }
         return icon;
+    }
+
+    private String renderGuiText(Player viewer, String template, Map<String, String> placeholders) {
+        return viewer == null
+            ? plugin.getMessages().renderTemplate(template, placeholders)
+            : plugin.getMessages().renderTemplateForViewer(viewer, template, placeholders);
     }
 
     private String trimChance(double chance) {

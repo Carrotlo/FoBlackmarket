@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
 import me.foesio.core.dialog.DialogButton;
+import me.foesio.core.dialog.DialogIcons;
 import me.foesio.core.dialog.TextDialogRequest;
 import me.foesio.core.editor.CursorItemEditor;
 import me.foesio.core.editor.EditorDialogInputs;
@@ -66,6 +67,12 @@ public abstract class BaseGui implements InventoryHolder {
         ItemStack[] previousContents = inventory.getContents().clone();
         inventory.clear();
         render();
+        for (int slot = 0; slot < inventory.getSize(); slot++) {
+            ItemStack item = inventory.getItem(slot);
+            if (item != null) {
+                inventory.setItem(slot, DialogIcons.forViewer(viewer, item));
+            }
+        }
         if (hasInventoryChanged(previousContents, inventory.getContents())
             && viewer.getOpenInventory().getTopInventory().equals(inventory)) {
             viewer.updateInventory();
@@ -195,19 +202,13 @@ public abstract class BaseGui implements InventoryHolder {
     }
 
     protected ItemStack item(Material material, String name, List<String> lore) {
-        ItemStack item = new ItemStack(material);
-        ItemMeta meta = item.getItemMeta();
-        if (meta != null) {
-            meta.setDisplayName(FoText.color(name));
-            List<String> lines = new ArrayList<>();
-            for (String line : lore) {
-                lines.add(FoText.color(line));
-            }
-            meta.setLore(lines);
-            meta.addItemFlags(ItemFlag.HIDE_ATTRIBUTES);
-            item.setItemMeta(meta);
-        }
-        return item;
+        return EditorItemFactory.item(viewer, material, name, lore);
+    }
+
+    protected ItemStack button(Material material, String nameColor, String label,
+                                List<String> information, String clickAction) {
+        return EditorItemFactory.button(viewer, material, nameColor, FoText.plain(label),
+                information == null ? List.of() : information, clickAction);
     }
 
     protected boolean itemsEqual(ItemStack first, ItemStack second) {

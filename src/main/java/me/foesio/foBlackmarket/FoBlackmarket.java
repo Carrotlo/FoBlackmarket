@@ -62,6 +62,7 @@ public final class FoBlackmarket extends JavaPlugin {
         this.configManager.reload();
         this.messages = loadMessages();
         reloadCoreDialogFoundation();
+        migrateSprites();
 
         this.guiConfigManager = new GuiConfigManager(this);
         this.guiConfigManager.ensureDefaults(configManager.getConfig());
@@ -233,6 +234,30 @@ public final class FoBlackmarket extends JavaPlugin {
             .removeIfMemorySectionString("native-dialogs")
             .removeIfMemorySectionString("editor")
             .build();
+    }
+
+    private void migrateSprites() {
+        messages.migrateToVersion(core.migrations(), 1, config -> {
+            boolean changed = false;
+            changed |= FoMessageService.addMissingToken(config, "tokens.prefix", ":emerald:", null);
+            changed |= FoMessageService.addMissingToken(config, "messages.reload-success", ":emerald:");
+            changed |= FoMessageService.addMissingToken(config, "messages.reload-failed", ":redstone:");
+            changed |= FoMessageService.addMissingToken(config, "messages.restock-success", ":clock:");
+            changed |= FoMessageService.addMissingToken(config, "messages.opengui-success", ":chest:");
+            changed |= FoMessageService.addMissingToken(config, "messages.editor-saved", ":emerald:");
+            changed |= FoMessageService.addMissingToken(config, "messages.market-bought", ":emerald:");
+            changed |= FoMessageService.addMissingToken(config, "messages.market-purchase-failed", ":redstone:");
+            changed |= FoMessageService.addMissingToken(config, "messages.market-restocked-broadcast", ":clock:");
+            return true;
+        });
+        messages.migrateToVersion(core.migrations(), 2, config -> {
+            String oldPrefix = ":emerald: {theme}FoBlackmarket &8» {muted}";
+            if (!oldPrefix.equals(config.getString("tokens.prefix"))) {
+                return true;
+            }
+            config.set("tokens.prefix", ":ender_eye: {theme}FoBlackmarket &8» {muted}");
+            return true;
+        });
     }
 
     private boolean moveMessageValue(FileConfiguration messagesConfig, String sourcePath, String targetPath) {

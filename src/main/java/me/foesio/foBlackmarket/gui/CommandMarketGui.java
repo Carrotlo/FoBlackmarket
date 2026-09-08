@@ -4,6 +4,10 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import me.foesio.core.dialog.DialogIcons;
+import me.foesio.core.gui.FoButtonStyle;
+import me.foesio.core.message.FoStyle;
+import me.foesio.core.text.FoText;
 import me.foesio.foBlackmarket.FoBlackmarket;
 import me.foesio.foBlackmarket.market.ActiveOffer;
 import me.foesio.foBlackmarket.market.RarityDefinition;
@@ -47,7 +51,7 @@ public final class CommandMarketGui extends BaseGui {
         int offerStart = offerPage * guiConfig.offerPageSize();
         int offerCount = Math.min(guiConfig.offerPageSize(), Math.max(0, selectedOffers.size() - offerStart));
 
-        inventory.setItem(guiConfig.timerSlot(), guiConfig.timerItem().toItem(plugin.getMessages(), Map.of(
+        inventory.setItem(guiConfig.timerSlot(), guiConfig.timerItem().toItem(plugin.getMessages(), viewer, Map.of(
             "time_remaining", plugin.getConfigManager().formatDuration(plugin.getMarketService().getTimeUntilRestock()),
             "selected_rarity", getSelectedRarityLabel(),
             "showing_offers", getShowingOffersLine(offerStart, offerCount, selectedOffers.size())
@@ -72,15 +76,15 @@ public final class CommandMarketGui extends BaseGui {
         }
 
         for (int index = offerCount; index < offerSlots.length; index++) {
-            inventory.setItem(offerSlots[index], guiConfig.emptyOfferItem().toItem(plugin.getMessages(), Map.of()));
+            inventory.setItem(offerSlots[index], guiConfig.emptyOfferItem().toItem(plugin.getMessages(), viewer, Map.of()));
         }
 
         if (selectedOffers.size() > guiConfig.offerPageSize()) {
             if (offerPage > 0) {
-                inventory.setItem(guiConfig.previousPageSlot(), buttons.previousPage(offerPage, maxPage));
+                inventory.setItem(guiConfig.previousPageSlot(), buttons.previousPage(viewer, offerPage, maxPage));
             }
             if ((offerPage + 1) * guiConfig.offerPageSize() < selectedOffers.size()) {
-                inventory.setItem(guiConfig.nextPageSlot(), buttons.nextPage(offerPage, maxPage));
+                inventory.setItem(guiConfig.nextPageSlot(), buttons.nextPage(viewer, offerPage, maxPage));
             }
         }
     }
@@ -145,12 +149,24 @@ public final class CommandMarketGui extends BaseGui {
         ItemMeta meta = preview.getItemMeta();
         if (meta != null) {
             List<String> lore = meta.hasLore() ? new ArrayList<>(meta.getLore()) : new ArrayList<>();
+            String previewLine = plugin.getMessages().renderTemplateForViewer(
+                    viewer,
+                    guiConfig.offerPreviewLore(),
+                    Map.of()
+            );
             if (lore.isEmpty()) {
-                lore.add(plugin.getMessages().renderTemplate(guiConfig.offerPreviewLore(), Map.of()));
+                lore.add(previewLine);
             } else {
-                lore.set(lore.size() - 1, plugin.getMessages().renderTemplate(guiConfig.offerPreviewLore(), Map.of()));
+                lore.set(lore.size() - 1, FoButtonStyle.informationLine(previewLine));
             }
-            meta.setLore(lore);
+            // FoButtonStyle uses editable legacy color tokens. Re-apply the
+            // complete metadata through Core so &7/&f and any configured
+            // sprite tokens are rendered for this viewer instead of leaking as
+            // literal text.
+            if (!DialogIcons.applyItemMeta(meta, viewer, meta.getDisplayName(), lore)) {
+                meta.setDisplayName(DialogIcons.fallbackText(meta.getDisplayName()));
+                meta.setLore(lore.stream().map(DialogIcons::fallbackText).toList());
+            }
             preview.setItemMeta(meta);
         }
         return preview;
@@ -161,21 +177,32 @@ public final class CommandMarketGui extends BaseGui {
         ItemStack icon = base == null || base.getType().isAir() ? new ItemStack(Material.NAME_TAG) : base.clone();
         ItemMeta meta = icon.getItemMeta();
         if (meta != null) {
-            meta.setDisplayName(plugin.getMessages().renderTemplate(rarity.getDisplayName(), Map.of()));
+            String label = plugin.getMessages().renderTemplateForViewer(viewer, rarity.getDisplayName(), Map.of());
             Map<String, String> placeholders = Map.of(
                 "rarity", rarity.getDisplayName(),
                 "rarity_id", rarity.getId(),
                 "offer_count", String.valueOf(offerCount),
                 "selection_status", selected ? guiConfig.raritySelectedLine() : guiConfig.rarityUnselectedLine()
             );
-            List<String> lore = new ArrayList<>();
+            List<String> information = new ArrayList<>();
             for (String line : guiConfig.rarityLore()) {
-                String rendered = plugin.getMessages().renderTemplate(line, placeholders);
+                String rendered = plugin.getMessages().renderTemplateForViewer(viewer, line, placeholders);
                 if (!rendered.isBlank()) {
-                    lore.add(rendered);
+                    information.add(rendered);
                 }
             }
-            meta.setLore(lore);
+            String buttonName = DialogIcons.withMaterialIcon(
+                    FoButtonStyle.buttonName(FoStyle.THEME, label),
+                    icon.getType()
+            );
+            List<String> lore = FoButtonStyle.buttonLore(
+                    information,
+                    "view " + FoText.plain(label)
+            );
+            if (!DialogIcons.applyItemMeta(meta, viewer, buttonName, lore)) {
+                meta.setDisplayName(FoText.color(DialogIcons.fallbackText(buttonName)));
+                meta.setLore(FoText.color(lore.stream().map(DialogIcons::fallbackText).toList()));
+            }
             icon.setItemMeta(meta);
         }
         return icon;

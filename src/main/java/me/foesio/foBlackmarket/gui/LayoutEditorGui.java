@@ -47,11 +47,14 @@ public final class LayoutEditorGui extends BaseGui {
             inventory.setItem(slot, createLayoutSlotButton(rarityIds, rarityId, rarity));
         }
 
-        inventory.setItem(45, item(Material.CHEST, "#03fc88GUI Size", "#ffffffCurrent: #03fc88" + layout.getSize(), "#ffffffClick to edit. Use multiples of 9."));
-        inventory.setItem(46, item(Material.CLOCK, "#03fc88Info Slot", "#ffffffCurrent: #03fc88" + layout.getInfoSlot(), "#ffffffClick to edit."));
-        inventory.setItem(47, item(Material.GRAY_STAINED_GLASS_PANE, "#03fc88Reserved Slot", "#ffffffCurrent: #03fc88" + layout.getCloseSlot(), "#ffffffClick to edit."));
+        inventory.setItem(45, button(Material.CHEST, "#03fc88", "GUI Size",
+            List.of("Current: " + layout.getSize(), "Click to edit. Use multiples of 9."), "edit the GUI size"));
+        inventory.setItem(46, button(Material.CLOCK, "#03fc88", "Info Slot",
+            List.of("Current: " + layout.getInfoSlot(), "Click to edit."), "edit the info slot"));
+        inventory.setItem(47, button(Material.GRAY_STAINED_GLASS_PANE, "#03fc88", "Reserved Slot",
+            List.of("Current: " + layout.getCloseSlot(), "Click to edit."), "edit the reserved slot"));
         inventory.setItem(48, createFillerPreview(layout.getFillerItem()));
-        inventory.setItem(bottomMiddleSlot(ROWS), buttons.back());
+        inventory.setItem(bottomMiddleSlot(ROWS), buttons.back(viewer));
         inventory.setItem(HELP_SLOT, item(Material.BOOK, "#03fc88Editor Help", "#ffffffClick top slots to cycle rarities.", "#ffffffSlots never become air while a rarity pool exists."));
         fillEditorBackground();
     }

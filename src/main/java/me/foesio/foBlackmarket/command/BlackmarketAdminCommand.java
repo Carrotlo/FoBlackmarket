@@ -58,13 +58,12 @@ public final class BlackmarketAdminCommand {
             .reloadSuccess("messages.reload-success", "{prefix} {good}Config, messages, GUIs and market data reloaded.")
             .reloadFailed("messages.reload-failed", "{prefix} {bad}Reload failed at {theme}{step}{bad}. {muted}{error}")
             .editorOpened("messages.editor-saved", "{prefix} {good}Opened the editor.")
-            .versionCurrent("messages.version-current", "{prefix} {good}FoBlackmarket is up to date.")
             .build();
     }
 
     private static FoAdminSubcommand versionSubcommand(UpdateNoticeService updateNotices) {
         return FoAdminSubcommand.builder("version", ctx -> {
-            updateNotices.sendVersion(ctx.sender());
+            updateNotices.checkAndSendVersion(ctx.sender());
             return true;
         }).usage("version").build();
     }

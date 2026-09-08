@@ -90,7 +90,8 @@ public final class RewardListGui extends BaseGui {
                 .filter(filter)
                 .buttons(buttons)
                 .showBack(true)
-                .addButton(item(Material.ANVIL, "#03fc88Create Reward", "#ffffffClick to create a new reward set."))
+                .addButton(button(Material.ANVIL, "#03fc88", "Create Reward",
+                    List.of("Click to create a new reward set."), "create a reward"))
                 .context(new RewardBrowserContext())
                 .build();
     }
