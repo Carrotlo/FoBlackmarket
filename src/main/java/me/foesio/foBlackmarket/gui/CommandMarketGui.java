@@ -140,36 +140,7 @@ public final class CommandMarketGui extends BaseGui {
         if (offer == null) {
             return null;
         }
-
-        ItemStack preview = plugin.getMarketService().createOfferDisplayItem(offer, viewer);
-        if (preview == null) {
-            return null;
-        }
-
-        ItemMeta meta = preview.getItemMeta();
-        if (meta != null) {
-            List<String> lore = meta.hasLore() ? new ArrayList<>(meta.getLore()) : new ArrayList<>();
-            String previewLine = plugin.getMessages().renderTemplateForViewer(
-                    viewer,
-                    guiConfig.offerPreviewLore(),
-                    Map.of()
-            );
-            if (lore.isEmpty()) {
-                lore.add(previewLine);
-            } else {
-                lore.set(lore.size() - 1, FoButtonStyle.informationLine(previewLine));
-            }
-            // FoButtonStyle uses editable legacy color tokens. Re-apply the
-            // complete metadata through Core so &7/&f and any configured
-            // sprite tokens are rendered for this viewer instead of leaking as
-            // literal text.
-            if (!DialogIcons.applyItemMeta(meta, viewer, meta.getDisplayName(), lore)) {
-                meta.setDisplayName(DialogIcons.fallbackText(meta.getDisplayName()));
-                meta.setLore(lore.stream().map(DialogIcons::fallbackText).toList());
-            }
-            preview.setItemMeta(meta);
-        }
-        return preview;
+        return plugin.getMarketService().createOfferDisplayItem(offer, viewer, guiConfig.offerPreviewLore());
     }
 
     private ItemStack createRarityItem(RarityDefinition rarity, int offerCount, boolean selected) {

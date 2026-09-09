@@ -4,6 +4,7 @@ import java.io.File;
 import me.foesio.core.FoCoreContext;
 import me.foesio.core.FoPluginCore;
 import me.foesio.core.dialog.NativeDialogConfigDefaults;
+import me.foesio.core.economy.VaultEconomyBridge;
 import me.foesio.core.gui.GuiTitles;
 import me.foesio.core.message.FoMessageMigrations;
 import me.foesio.core.message.FoMessageService;
@@ -21,7 +22,6 @@ import me.foesio.foBlackmarket.config.ConfigManager;
 import me.foesio.foBlackmarket.gui.GuiListener;
 import me.foesio.foBlackmarket.gui.GuiConfigManager;
 import me.foesio.foBlackmarket.gui.GuiManager;
-import me.foesio.foBlackmarket.hook.VaultHook;
 import me.foesio.foBlackmarket.market.MarketRepository;
 import me.foesio.foBlackmarket.market.MarketService;
 import me.foesio.foBlackmarket.performance.ActionCooldowns;
@@ -43,7 +43,7 @@ public final class FoBlackmarket extends JavaPlugin {
     private FoMessageService messages;
     private ConfigManager configManager;
     private MarketRepository marketRepository;
-    private VaultHook vaultHook;
+    private VaultEconomyBridge vaultEconomy;
     private GuiConfigManager guiConfigManager;
     private GuiManager guiManager;
     private MarketService marketService;
@@ -72,10 +72,10 @@ public final class FoBlackmarket extends JavaPlugin {
         this.marketRepository = new MarketRepository(this);
         this.marketRepository.ensureExists();
 
-        this.vaultHook = new VaultHook(this);
+        this.vaultEconomy = core.createVaultEconomy();
         this.actionCooldowns = new ActionCooldowns();
         this.guiManager = new GuiManager(this);
-        this.marketService = new MarketService(this, configManager, marketRepository, vaultHook, guiManager);
+        this.marketService = new MarketService(this, configManager, marketRepository, vaultEconomy, guiManager);
         this.updateNotices = core.createUpdateNotices(messages, MODRINTH_PROJECT_ID, adminSounds).start();
 
         getServer().getPluginManager().registerEvents(new GuiListener(this, guiManager), this);

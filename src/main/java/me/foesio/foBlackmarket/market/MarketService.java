@@ -13,6 +13,7 @@ import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import me.foesio.core.command.CommandPlaceholders;
 import me.foesio.core.dialog.DialogIcons;
+import me.foesio.core.economy.VaultEconomyBridge;
 import me.foesio.core.gui.FoButtonStyle;
 import me.foesio.core.inventory.InventoryDepositResult;
 import me.foesio.core.inventory.OverflowPolicy;
@@ -21,7 +22,6 @@ import me.foesio.core.text.FoText;
 import me.foesio.foBlackmarket.FoBlackmarket;
 import me.foesio.foBlackmarket.config.ConfigManager;
 import me.foesio.foBlackmarket.gui.GuiManager;
-import me.foesio.foBlackmarket.hook.VaultHook;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -34,7 +34,7 @@ public final class MarketService {
     private final FoBlackmarket plugin;
     private final ConfigManager configManager;
     private final MarketRepository marketRepository;
-    private final VaultHook vaultHook;
+    private final VaultEconomyBridge vaultEconomy;
     private final GuiManager guiManager;
     private final Object lock = new Object();
 
@@ -47,13 +47,13 @@ public final class MarketService {
         FoBlackmarket plugin,
         ConfigManager configManager,
         MarketRepository marketRepository,
-        VaultHook vaultHook,
+        VaultEconomyBridge vaultEconomy,
         GuiManager guiManager
     ) {
         this.plugin = plugin;
         this.configManager = configManager;
         this.marketRepository = marketRepository;
-        this.vaultHook = vaultHook;
+        this.vaultEconomy = vaultEconomy;
         this.guiManager = guiManager;
     }
 
@@ -74,7 +74,7 @@ public final class MarketService {
     public void reloadFromDisk() {
         boolean restored;
         synchronized (lock) {
-            vaultHook.hook();
+            vaultEconomy.reload();
             this.marketData = marketRepository.load();
             this.snapshot = restoreSnapshot(marketData, marketRepository.loadState());
             restored = snapshot != null;
@@ -312,8 +312,8 @@ public final class MarketService {
 
             if (requiresMoney(cost)) {
                 double moneyCost = Math.max(0.0D, cost.getMoneyCost());
-                if (!vaultHook.hasEconomy() || !vaultHook.has(player, moneyCost)) {
-                    return PurchaseResult.moneyFailure(vaultHook.format(moneyCost));
+                if (!vaultEconomy.isAvailable() || !vaultEconomy.has(player, moneyCost)) {
+                    return PurchaseResult.moneyFailure(vaultEconomy.format(moneyCost));
                 }
             }
 
@@ -326,7 +326,7 @@ public final class MarketService {
 
             if (requiresMoney(cost)) {
                 double moneyCost = Math.max(0.0D, cost.getMoneyCost());
-                if (!vaultHook.withdraw(player, moneyCost)) {
+                if (!vaultEconomy.withdraw(player, moneyCost)) {
                     return PurchaseResult.of(PurchaseResult.Status.FAILED);
                 }
             }
@@ -373,20 +373,29 @@ public final class MarketService {
     public String describeCost(RewardDefinition reward) {
         CostDefinition cost = reward.getCost();
         if (cost.getType() == CostType.MONEY) {
-            return vaultHook.format(cost.getMoneyCost());
+            return vaultEconomy.format(cost.getMoneyCost());
         }
         if (cost.getType() == CostType.ITEM) {
             return describeItemCost(cost.getItemCost());
         }
-        return vaultHook.format(cost.getMoneyCost()) + " + " + describeItemCost(cost.getItemCost());
+        return vaultEconomy.format(cost.getMoneyCost()) + " + " + describeItemCost(cost.getItemCost());
     }
 
     public ItemStack createOfferDisplayItem(ActiveOffer offer, Player viewer) {
+        return createOfferDisplayItem(offer, viewer, null);
+    }
+
+    /**
+     * Creates an offer item and adds an optional extra line before metadata is
+     * rendered for the viewer. Keeping this in one render pass prevents
+     * Adventure object components from being fed back through legacy text.
+     */
+    public ItemStack createOfferDisplayItem(ActiveOffer offer, Player viewer, String extraLoreLine) {
         if (offer == null) {
             return null;
         }
         synchronized (lock) {
-            return buildOfferDisplayItem(offer, viewer);
+            return buildOfferDisplayItem(offer, viewer, extraLoreLine);
         }
     }
 
@@ -734,10 +743,10 @@ public final class MarketService {
 
     private void cacheOfferDisplay(ActiveOffer offer) {
         offer.setCostDisplay(describeCost(offer.getReward()));
-        offer.setDisplayItem(buildOfferDisplayItem(offer, null));
+        offer.setDisplayItem(buildOfferDisplayItem(offer, null, null));
     }
 
-    private ItemStack buildOfferDisplayItem(ActiveOffer offer, Player viewer) {
+    private ItemStack buildOfferDisplayItem(ActiveOffer offer, Player viewer, String extraLoreLine) {
         me.foesio.foBlackmarket.gui.GuiConfigManager.PlayerMarketGuiConfig guiConfig = plugin.getGuiConfigManager().playerMarket();
         ItemStack base = offer.getReward().getIcon();
         ItemStack icon = base == null || base.getType().isAir() ? new ItemStack(guiConfig.offerFallbackMaterial()) : base.clone();
@@ -754,7 +763,10 @@ public final class MarketService {
             placeholders.put("rarity_id", offer.getRarity().getId());
             placeholders.put("stock", String.valueOf(remainingStock));
             placeholders.put("stock_mode", offer.getReward().getStockMode().getDisplayName());
-            placeholders.put("cost", offer.getCostDisplay());
+            // The provider may register after the market snapshot is cached.
+            // Format again for the actual GUI viewer so custom Vault currency
+            // formatting is not stuck at the startup fallback value.
+            placeholders.put("cost", describeCost(offer.getReward()));
             placeholders.put("chance", trimChance(offer.getReward().getChance()));
             placeholders.put("commands", String.valueOf(offer.getReward().getCommands().size()));
             placeholders.put("commands_line", commandsLine);
@@ -774,10 +786,18 @@ public final class MarketService {
                     information.add(rendered);
                 }
             }
-            List<String> lore = FoButtonStyle.buttonLore(
+            List<String> lore = new ArrayList<>(FoButtonStyle.buttonLore(
                 information,
                 remainingStock > 0 ? "buy" : "try again later"
-            );
+            ));
+            if (extraLoreLine != null && !extraLoreLine.isBlank()) {
+                String renderedExtraLine = renderGuiText(viewer, extraLoreLine, Map.of());
+                if (lore.isEmpty()) {
+                    lore.add(renderedExtraLine);
+                } else {
+                    lore.set(lore.size() - 1, FoButtonStyle.informationLine(renderedExtraLine));
+                }
+            }
             if (!DialogIcons.applyItemMeta(meta, viewer, buttonName, lore)) {
                 meta.setDisplayName(FoText.color(DialogIcons.fallbackText(buttonName)));
                 meta.setLore(FoText.color(lore.stream().map(DialogIcons::fallbackText).toList()));
