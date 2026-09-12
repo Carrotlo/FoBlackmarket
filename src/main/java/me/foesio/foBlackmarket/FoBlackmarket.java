@@ -4,6 +4,7 @@ import java.io.File;
 import me.foesio.core.FoCoreContext;
 import me.foesio.core.FoPluginCore;
 import me.foesio.core.dialog.NativeDialogConfigDefaults;
+import me.foesio.core.dialog.DialogIcons;
 import me.foesio.core.economy.VaultEconomyBridge;
 import me.foesio.core.gui.GuiTitles;
 import me.foesio.core.message.FoMessageMigrations;
@@ -239,15 +240,15 @@ public final class FoBlackmarket extends JavaPlugin {
     private void migrateSprites() {
         messages.migrateToVersion(core.migrations(), 1, config -> {
             boolean changed = false;
-            changed |= FoMessageService.addMissingToken(config, "tokens.prefix", ":emerald:", null);
-            changed |= FoMessageService.addMissingToken(config, "messages.reload-success", ":emerald:");
-            changed |= FoMessageService.addMissingToken(config, "messages.reload-failed", ":redstone:");
-            changed |= FoMessageService.addMissingToken(config, "messages.restock-success", ":clock:");
-            changed |= FoMessageService.addMissingToken(config, "messages.opengui-success", ":chest:");
-            changed |= FoMessageService.addMissingToken(config, "messages.editor-saved", ":emerald:");
-            changed |= FoMessageService.addMissingToken(config, "messages.market-bought", ":emerald:");
-            changed |= FoMessageService.addMissingToken(config, "messages.market-purchase-failed", ":redstone:");
-            changed |= FoMessageService.addMissingToken(config, "messages.market-restocked-broadcast", ":clock:");
+            changed |= addSpriteIfAbsent(config, "tokens.prefix", ":emerald:", null);
+            changed |= addSpriteIfAbsent(config, "messages.reload-success", ":emerald:", "{prefix}");
+            changed |= addSpriteIfAbsent(config, "messages.reload-failed", ":redstone:", "{prefix}");
+            changed |= addSpriteIfAbsent(config, "messages.restock-success", ":clock:", "{prefix}");
+            changed |= addSpriteIfAbsent(config, "messages.opengui-success", ":chest:", "{prefix}");
+            changed |= addSpriteIfAbsent(config, "messages.editor-saved", ":emerald:", "{prefix}");
+            changed |= addSpriteIfAbsent(config, "messages.market-bought", ":emerald:", "{prefix}");
+            changed |= addSpriteIfAbsent(config, "messages.market-purchase-failed", ":redstone:", "{prefix}");
+            changed |= addSpriteIfAbsent(config, "messages.market-restocked-broadcast", ":clock:", "{prefix}");
             return true;
         });
         messages.migrateToVersion(core.migrations(), 2, config -> {
@@ -258,6 +259,22 @@ public final class FoBlackmarket extends JavaPlugin {
             config.set("tokens.prefix", ":ender_eye: {theme}FoBlackmarket &8» {muted}");
             return true;
         });
+        messages.migrateToVersion(core.migrations(), 3, config -> {
+            String duplicatedDefaultPrefix = ":emerald: :ender_eye: {theme}FoBlackmarket &8» {muted}";
+            if (!duplicatedDefaultPrefix.equals(config.getString("tokens.prefix"))) {
+                return true;
+            }
+            config.set("tokens.prefix", ":ender_eye: {theme}FoBlackmarket &8» {muted}");
+            return true;
+        });
+    }
+
+    private boolean addSpriteIfAbsent(FileConfiguration config, String path, String token, String anchor) {
+        String current = config.getString(path);
+        if (current != null && DialogIcons.containsToken(current)) {
+            return false;
+        }
+        return FoMessageService.addMissingToken(config, path, token, anchor);
     }
 
     private boolean moveMessageValue(FileConfiguration messagesConfig, String sourcePath, String targetPath) {

@@ -17,7 +17,6 @@ import me.foesio.core.economy.VaultEconomyBridge;
 import me.foesio.core.gui.FoButtonStyle;
 import me.foesio.core.inventory.InventoryDepositResult;
 import me.foesio.core.inventory.OverflowPolicy;
-import me.foesio.core.message.FoStyle;
 import me.foesio.core.text.FoText;
 import me.foesio.foBlackmarket.FoBlackmarket;
 import me.foesio.foBlackmarket.config.ConfigManager;
@@ -313,7 +312,7 @@ public final class MarketService {
             if (requiresMoney(cost)) {
                 double moneyCost = Math.max(0.0D, cost.getMoneyCost());
                 if (!vaultEconomy.isAvailable() || !vaultEconomy.has(player, moneyCost)) {
-                    return PurchaseResult.moneyFailure(vaultEconomy.format(moneyCost));
+                    return PurchaseResult.moneyFailure(vaultEconomy.formatCompact(moneyCost));
                 }
             }
 
@@ -373,12 +372,12 @@ public final class MarketService {
     public String describeCost(RewardDefinition reward) {
         CostDefinition cost = reward.getCost();
         if (cost.getType() == CostType.MONEY) {
-            return vaultEconomy.format(cost.getMoneyCost());
+            return vaultEconomy.formatCompact(cost.getMoneyCost());
         }
         if (cost.getType() == CostType.ITEM) {
             return describeItemCost(cost.getItemCost());
         }
-        return vaultEconomy.format(cost.getMoneyCost()) + " + " + describeItemCost(cost.getItemCost());
+        return vaultEconomy.formatCompact(cost.getMoneyCost()) + " + " + describeItemCost(cost.getItemCost());
     }
 
     public ItemStack createOfferDisplayItem(ActiveOffer offer, Player viewer) {
@@ -756,8 +755,19 @@ public final class MarketService {
             String commandsLine = offer.getReward().getCommands().isEmpty()
                 ? ""
                 : renderGuiText(viewer, guiConfig.commandsLine(), Map.of("commands", String.valueOf(offer.getReward().getCommands().size())));
+            // The offer name belongs to the reward/domain data, not to the
+            // generic public GUI resource. Keep it intact and use the same
+            // safe fallback for both the item name and the {reward} lore
+            // placeholder.
+            String rewardName = offer.getReward().getDisplayName();
+            if (rewardName == null || rewardName.isBlank()) {
+                rewardName = offer.getRewardId();
+            }
+            if (rewardName == null || rewardName.isBlank()) {
+                rewardName = prettify(icon.getType());
+            }
             Map<String, String> placeholders = new LinkedHashMap<>();
-            placeholders.put("reward", offer.getReward().getDisplayName());
+            placeholders.put("reward", rewardName);
             placeholders.put("reward_id", offer.getRewardId());
             placeholders.put("rarity", offer.getRarity().getDisplayName());
             placeholders.put("rarity_id", offer.getRarity().getId());
@@ -774,11 +784,22 @@ public final class MarketService {
             String renderedStatusLine = renderGuiText(viewer, statusLine, placeholders);
             placeholders.put("status_line", renderedStatusLine);
 
-            String renderedName = renderGuiText(viewer, guiConfig.offerName(), placeholders);
-            String buttonName = DialogIcons.withMaterialIcon(
-                FoButtonStyle.buttonName(FoStyle.THEME, renderedName),
+            String renderedName = renderGuiText(viewer, rewardName, Map.of());
+            if (renderedName == null || renderedName.isBlank()) {
+                renderedName = renderGuiText(viewer, prettify(icon.getType()), Map.of());
+            }
+            String displayName = DialogIcons.withMaterialIcon(
+                renderedName,
                 icon.getType()
             );
+            // A reward can be configured as a sprite-only label. That is
+            // valid for a supported client, but becomes an empty legacy name
+            // for cached/null-viewer and Bedrock paths. Keep the item name
+            // useful everywhere by falling back to the material label.
+            if (DialogIcons.fallbackText(displayName).isBlank()) {
+                String fallbackName = renderGuiText(viewer, prettify(icon.getType()), Map.of());
+                displayName = DialogIcons.withMaterialIcon(fallbackName, icon.getType());
+            }
             List<String> information = new ArrayList<>();
             for (String line : guiConfig.offerLore()) {
                 String rendered = renderGuiText(viewer, line, placeholders);
@@ -798,8 +819,8 @@ public final class MarketService {
                     lore.set(lore.size() - 1, FoButtonStyle.informationLine(renderedExtraLine));
                 }
             }
-            if (!DialogIcons.applyItemMeta(meta, viewer, buttonName, lore)) {
-                meta.setDisplayName(FoText.color(DialogIcons.fallbackText(buttonName)));
+            if (!DialogIcons.applyItemMeta(meta, viewer, displayName, lore)) {
+                meta.setDisplayName(FoText.color(DialogIcons.fallbackText(displayName)));
                 meta.setLore(FoText.color(lore.stream().map(DialogIcons::fallbackText).toList()));
             }
             icon.setItemMeta(meta);

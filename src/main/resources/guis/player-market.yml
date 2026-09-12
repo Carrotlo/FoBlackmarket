@@ -15,7 +15,6 @@ items:
 offer-item:
   # Used when a reward has no custom display icon.
   fallback-material: CHEST
-  name: "{reward}"
   lore:
     - "#ffffffRarity: {rarity}"
     - "#ffffffStock: #03fc88{stock}"

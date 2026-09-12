@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import me.foesio.core.editor.CycleOption;
 import me.foesio.core.editor.CycleOptions;
+import me.foesio.core.number.LargeNumberParser;
 import me.foesio.core.text.FoText;
 import me.foesio.foBlackmarket.FoBlackmarket;
 import me.foesio.foBlackmarket.market.CostType;
@@ -96,7 +97,7 @@ public final class RewardEditGui extends BaseGui {
             }
             case 16 -> {
                 if (reward.getCost().getType() == CostType.MONEY) {
-                    promptMoney("Enter the money cost.", String.valueOf(reward.getCost().getMoneyCost()), reward.getCost()::setMoneyCost, "Use a number like 500 or 500.0.");
+                    promptMoney("Enter the money cost.", String.valueOf(reward.getCost().getMoneyCost()), reward.getCost()::setMoneyCost, "Use a number like 500, 1.5k, or 1Qa.");
                 } else if (reward.getCost().getType() == CostType.ITEM) {
                     if (event.getClick() == ClickType.RIGHT) {
                         reward.getCost().setItemCost(null);
@@ -132,7 +133,7 @@ public final class RewardEditGui extends BaseGui {
                         return;
                     }
                     if (viewer.getInventory().getItemInMainHand().getType().isAir()) {
-                        promptMoney("Enter the money cost.", String.valueOf(reward.getCost().getMoneyCost()), reward.getCost()::setMoneyCost, "Use a number like 500 or 500.0.");
+                        promptMoney("Enter the money cost.", String.valueOf(reward.getCost().getMoneyCost()), reward.getCost()::setMoneyCost, "Use a number like 500, 1.5k, or 1Qa.");
                     } else {
                         editorSounds.error(viewer);
                         plugin.getMessages().send(viewer, "messages.editor-invalid", Map.of("reason", "For BOTH costs: click with an item to set the item cost, or empty your hand and click to edit money."));
@@ -265,7 +266,8 @@ public final class RewardEditGui extends BaseGui {
     private void promptMoney(String prompt, String currentValue, java.util.function.DoubleConsumer consumer, String invalidReason) {
         openEditorInput(editorMoneyRequest(prompt, currentValue), input -> {
             try {
-                consumer.accept(Double.parseDouble(input.trim()));
+                consumer.accept(LargeNumberParser.parseDouble(input.trim())
+                        .orElseThrow(() -> new NumberFormatException("Invalid money amount")));
                 persistCurrentRewardChange();
                 editorSounds.save(viewer);
                 plugin.getMessages().send(viewer, "messages.editor-saved", Map.of("target", "reward value"));

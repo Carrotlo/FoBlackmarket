@@ -135,7 +135,6 @@ public final class GuiConfigManager {
                 List.of()
             )),
             material(string(yaml, "offer-item.fallback-material", "CHEST"), Material.CHEST),
-            string(yaml, "offer-item.name", "{reward}"),
             stringList(yaml, "offer-item.lore", List.of(
                 "#ffffffRarity: {rarity}",
                 "#ffffffStock: #03fc88{stock}",
@@ -327,7 +326,6 @@ public final class GuiConfigManager {
         String title,
         ConfiguredGuiItem infoItem,
         Material offerFallbackMaterial,
-        String offerName,
         List<String> offerLore,
         String commandsLine,
         String buyLine,
