@@ -1,0 +1,63 @@
+# FoBlackmarket main config
+# Tokens:
+# {prefix} {theme} {muted} {white} {good} {bad}
+
+colors:
+  theme: "#03fc88"
+  muted: "#a7b8b0"
+  white: "#ffffff"
+  good: "#3ecf8e"
+  bad: "#ff5d73"
+
+prefix: "{theme}FoBlackmarket &8» {muted}"
+
+messages:
+  no-permission: "{prefix} {bad}You do not have permission."
+  player-only: "{prefix} {bad}Only players can use this."
+  blackmarket-info: "{prefix} {muted}Visit the {theme}Black Market NPC{muted}. Next restock in {theme}{time_remaining}{muted}."
+  market-unavailable: "{prefix} {bad}The black market is not ready yet."
+  version: "{prefix} {muted}Running {theme}FoBlackmarket {theme}{version}{muted} by {theme}Carrotio{muted}."
+  reload-success: "{prefix} {good}Config and market data reloaded."
+  restock-success: "{prefix} {good}The black market was restocked immediately."
+  opengui-success: "{prefix} {good}Opened the black market for {theme}{player}{good}."
+  player-not-found: "{prefix} {bad}That player is not online."
+  invalid-subcommand: "{prefix} {bad}Usage: {theme}/blackmarketadmin <version|editor|reload|restock|opengui>{muted}."
+  invalid-opengui: "{prefix} {bad}Usage: {theme}/blackmarketadmin opengui <player>{muted}."
+  editor-saved: "{prefix} {good}Saved {theme}{target}{good}."
+  editor-cancelled: "{prefix} {bad}Cancelled input."
+  editor-invalid: "{prefix} {bad}Invalid input. {muted}{reason}"
+  market-bought: "{prefix} {good}Purchased {theme}{reward}{good}. Remaining stock: {theme}{stock}{good}."
+  market-sold-out: "{prefix} {bad}That offer is sold out."
+  market-not-enough-money: "{prefix} {bad}You need {theme}{price}{bad} to buy that."
+  market-not-enough-items: "{prefix} {bad}You need the required item cost to buy that."
+  market-inventory-full: "{prefix} {bad}You need inventory space first."
+  market-purchase-failed: "{prefix} {bad}That purchase could not be completed."
+  market-cooldown: "{prefix} {bad}Please wait a moment before trying again."
+  opengui-cooldown: "{prefix} {bad}That player's market was opened too recently."
+  market-restocked-broadcast: "{prefix} {good}The Black Market has restocked. {muted}Next refresh in {theme}{time_remaining}{muted}."
+  prompt-header: "{prefix} {muted}{message}"
+
+titles:
+  market: "&8Black Market"
+  admin-main: "&8Black Market Editor"
+  rewards: "&8Reward Sets"
+  reward-edit: "&8Edit Reward"
+  rarities: "&8Rarities"
+  rarity-edit: "&8Edit Rarity"
+  layout: "&8Market Layout"
+
+settings:
+  restock-interval-minutes: 60
+  announce-restocks: true
+  command-opens-gui: true
+  performance:
+    purchase-cooldown-millis: 100
+    open-gui-cooldown-millis: 100
+    send-cooldown-feedback: false
+    send-failed-purchase-feedback: true
+    failed-purchase-feedback-cooldown-millis: 750
+  time-format:
+    day: "d"
+    hour: "h"
+    minute: "m"
+    second: "s"

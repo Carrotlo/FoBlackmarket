@@ -1,0 +1,37 @@
+# Public /blackmarket browser GUI.
+# Slot numbers are 0-based Minecraft inventory slots.
+# Placeholders: {time_remaining}, {selected_rarity}, {showing_offers}
+title: "&8ʙʟᴀᴄᴋ ᴍᴀʀᴋᴇᴛ"
+rows: 6
+
+slots:
+  timer: 4
+  rarities: [11, 12, 13, 14, 15, 16, 17]
+  offers: [28, 29, 30, 31, 32, 33, 34, 37, 38, 39, 40, 41, 42, 43]
+  previous-page: 36
+  next-page: 44
+
+items:
+  timer:
+    material: CLOCK
+    name: ":clock: {theme}&lMARKET RESET"
+    lore:
+      - "&8ɪɴꜰᴏ"
+      - " "
+      - "&eⓘ Information ↓"
+      - "&7&l | &fTime until reset: {theme}{time_remaining}"
+      - "&7&l | &fSelected rarity: {theme}{selected_rarity}"
+      - "&7&l | &f{showing_offers}"
+  empty-offer:
+    material: LIGHT_GRAY_STAINED_GLASS_PANE
+    name: " "
+    lore: []
+
+rarity-item:
+  lore:
+    - "Offers: {offer_count}"
+    - "{selection_status}"
+  selected: "Selected"
+  unselected: "Click to view this rarity."
+
+offer-preview-lore: "#a7b8b0Preview only."

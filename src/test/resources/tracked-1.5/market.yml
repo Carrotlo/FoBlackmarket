@@ -1,0 +1,153 @@
+# FoBlackmarket market data
+# Message and GUI title editing intentionally stays in config.yml.
+
+gui:
+  size: 45
+  info-slot: 4
+  close-slot: 40
+  filler:
+    material: GRAY_STAINED_GLASS_PANE
+    amount: 1
+    name: " "
+  slot-rarities:
+    "20": common
+    "21": uncommon
+    "22": rare
+    "23": epic
+    "24": legendary
+
+rarities:
+  common:
+    name: "#03fc88Common"
+    icon:
+      material: LIME_DYE
+      amount: 1
+      name: "#03fc88Common"
+  uncommon:
+    name: "#03fc88Uncommon"
+    icon:
+      material: SEA_PICKLE
+      amount: 1
+      name: "#03fc88Uncommon"
+  rare:
+    name: "#03fc88Rare"
+    icon:
+      material: DIAMOND
+      amount: 1
+      name: "#03fc88Rare"
+  epic:
+    name: "#03fc88Epic"
+    icon:
+      material: ENCHANTED_BOOK
+      amount: 1
+      name: "#03fc88Epic"
+  legendary:
+    name: "#03fc88Legendary"
+    icon:
+      material: NETHER_STAR
+      amount: 1
+      name: "#03fc88Legendary"
+
+rewards:
+  starter_food:
+    name: "#03fc88Starter Food Bundle"
+    rarity: common
+    chance: 60.0
+    stock: 16
+    icon:
+      material: COOKED_BEEF
+      amount: 8
+      name: "#03fc88Starter Food Bundle"
+      lore:
+        - "#ffffffFresh stock for hungry players."
+    reward-item:
+      material: COOKED_BEEF
+      amount: 8
+      name: "#03fc88Starter Food Bundle"
+      lore:
+        - "#ffffffFresh stock for hungry players."
+    commands: []
+    cost:
+      type: MONEY
+      money: 250.0
+  miner_kit:
+    name: "#03fc88Miner Kit"
+    rarity: uncommon
+    chance: 40.0
+    stock: 8
+    icon:
+      material: IRON_PICKAXE
+      amount: 1
+      name: "#03fc88Miner Kit"
+      lore:
+        - "#ffffffA quick mining starter."
+    reward-item:
+      material: IRON_PICKAXE
+      amount: 1
+      name: "#03fc88Miner Kit"
+      lore:
+        - "#ffffffA quick mining starter."
+    commands:
+      - "tell {player} Enjoy your miner kit."
+    cost:
+      type: MONEY
+      money: 800.0
+  diamond_drop:
+    name: "#03fc88Diamond Drop"
+    rarity: rare
+    chance: 30.0
+    stock: 5
+    icon:
+      material: DIAMOND
+      amount: 6
+      name: "#03fc88Diamond Drop"
+      lore:
+        - "#ffffffClean gems from the market vault."
+    reward-item:
+      material: DIAMOND
+      amount: 6
+      name: "#03fc88Diamond Drop"
+      lore:
+        - "#ffffffClean gems from the market vault."
+    commands: []
+    cost:
+      type: MONEY
+      money: 2500.0
+  key_crate:
+    name: "#03fc88Crate Key Deal"
+    rarity: epic
+    chance: 20.0
+    stock: 3
+    icon:
+      material: TRIPWIRE_HOOK
+      amount: 1
+      name: "#03fc88Crate Key Deal"
+      lore:
+        - "#ffffffRuns a reward command."
+    reward-item: {}
+    commands:
+      - "crate givekey {player} epic 1"
+    cost:
+      type: MONEY
+      money: 7500.0
+  legendary_blade:
+    name: "#03fc88Legendary Blade"
+    rarity: legendary
+    chance: 10.0
+    stock: 1
+    icon:
+      material: NETHERITE_SWORD
+      amount: 1
+      name: "#03fc88Legendary Blade"
+      lore:
+        - "#ffffffA one-off premium market drop."
+    reward-item:
+      material: NETHERITE_SWORD
+      amount: 1
+      name: "#03fc88Legendary Blade"
+      lore:
+        - "#ffffffA one-off premium market drop."
+    commands: []
+    cost:
+      type: MONEY
+      money: 25000.0

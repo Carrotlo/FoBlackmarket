@@ -94,6 +94,7 @@ public final class GuiListener implements Listener {
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
+        guiManager.forgetViewer(event.getPlayer());
         if (plugin.getCore() == null) {
             return;
         }

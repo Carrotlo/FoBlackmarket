@@ -128,6 +128,8 @@ public final class BlackmarketAdminCommand {
         GuiManager.OpenPlayerMarketResult result = guiManager.openPlayerMarket(target);
         if (result == GuiManager.OpenPlayerMarketResult.OPENED) {
             plugin.getMessages().send(ctx.sender(), "messages.opengui-success", Map.of("player", target.getName()));
+        } else if (result == GuiManager.OpenPlayerMarketResult.UNAVAILABLE) {
+            plugin.getMessages().send(ctx.sender(), "messages.market-unavailable", "");
         } else if (result == GuiManager.OpenPlayerMarketResult.COOLDOWN && configManager.shouldSendCooldownFeedback()) {
             plugin.getMessages().send(ctx.sender(), "messages.opengui-cooldown");
             plugin.getAdminSounds().updateError(ctx.sender());

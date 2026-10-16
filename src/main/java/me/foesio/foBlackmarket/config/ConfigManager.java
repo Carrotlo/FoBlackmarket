@@ -1,6 +1,11 @@
 package me.foesio.foBlackmarket.config;
 
 import java.time.Duration;
+import java.text.NumberFormat;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import me.foesio.foBlackmarket.FoBlackmarket;
 import org.bukkit.configuration.file.FileConfiguration;
 
@@ -16,10 +21,6 @@ public final class ConfigManager {
     private boolean cachedSendCooldownFeedback;
     private boolean cachedSendFailedPurchaseFeedback = true;
     private long cachedFailedPurchaseFeedbackCooldownMillis = 750L;
-    private String cachedDayLabel = "d";
-    private String cachedHourLabel = "h";
-    private String cachedMinuteLabel = "m";
-    private String cachedSecondLabel = "s";
 
     public ConfigManager(FoBlackmarket plugin) {
         this.plugin = plugin;
@@ -80,19 +81,27 @@ public final class ConfigManager {
 
     public String formatDuration(Duration duration) {
         long totalSeconds = Math.max(0L, duration.getSeconds());
+        if (totalSeconds == 0L) {
+            return plugin.getMessages().render("gui.duration-zero", "", Map.of("value", formatCount(0)));
+        }
         long days = totalSeconds / 86400L;
         long hours = (totalSeconds % 86400L) / 3600L;
         long minutes = (totalSeconds % 3600L) / 60L;
         long seconds = totalSeconds % 60L;
+        List<String> parts = new ArrayList<>();
+        addDurationPart(parts, "day", days);
+        addDurationPart(parts, "hour", hours);
+        addDurationPart(parts, "minute", minutes);
+        addDurationPart(parts, "second", seconds);
+        return String.join(plugin.getMessages().render("gui.duration-separator", ""), parts);
+    }
 
-        StringBuilder builder = new StringBuilder();
-        appendTime(builder, days, cachedDayLabel);
-        appendTime(builder, hours, cachedHourLabel);
-        appendTime(builder, minutes, cachedMinuteLabel);
-        if (builder.isEmpty() || seconds > 0L) {
-            appendTime(builder, seconds, cachedSecondLabel);
-        }
-        return builder.toString().trim();
+    public String formatCount(long count) {
+        String languageTag = plugin.getMessages().render("gui.number-locale", "");
+        Locale locale = languageTag.isBlank() ? Locale.ROOT : Locale.forLanguageTag(languageTag);
+        NumberFormat formatter = NumberFormat.getIntegerInstance(locale);
+        formatter.setGroupingUsed(false);
+        return formatter.format(count);
     }
 
     public FileConfiguration getConfig() {
@@ -108,19 +117,16 @@ public final class ConfigManager {
         this.cachedSendCooldownFeedback = config.getBoolean("settings.performance.send-cooldown-feedback", false);
         this.cachedSendFailedPurchaseFeedback = config.getBoolean("settings.performance.send-failed-purchase-feedback", true);
         this.cachedFailedPurchaseFeedbackCooldownMillis = Math.max(0L, config.getLong("settings.performance.failed-purchase-feedback-cooldown-millis", 750L));
-        this.cachedDayLabel = config.getString("settings.time-format.day", "d");
-        this.cachedHourLabel = config.getString("settings.time-format.hour", "h");
-        this.cachedMinuteLabel = config.getString("settings.time-format.minute", "m");
-        this.cachedSecondLabel = config.getString("settings.time-format.second", "s");
     }
 
-    private void appendTime(StringBuilder builder, long value, String label) {
+    private void addDurationPart(List<String> parts, String unit, long value) {
         if (value <= 0L) {
             return;
         }
-        if (!builder.isEmpty()) {
-            builder.append(' ');
+        String path = "gui.duration-" + unit + (value == 1L ? "-one" : "-other");
+        String text = plugin.getMessages().render(path, "", Map.of("value", formatCount(value)));
+        if (!text.isEmpty()) {
+            parts.add(text);
         }
-        builder.append(value).append(label);
     }
 }

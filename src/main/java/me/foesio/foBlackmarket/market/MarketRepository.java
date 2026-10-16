@@ -7,6 +7,9 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -22,6 +25,7 @@ import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
@@ -44,6 +48,11 @@ public final class MarketRepository {
         this.file = new File(plugin.getDataFolder(), "market.yml");
     }
 
+    MarketRepository(File file) {
+        this.plugin = null;
+        this.file = file;
+    }
+
     public void ensureExists() {
         if (!file.exists()) {
             plugin.saveResource("market.yml", false);
@@ -51,7 +60,24 @@ public final class MarketRepository {
     }
 
     public MarketData load() {
-        YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
+        return readMarket(YamlConfiguration.loadConfiguration(file));
+    }
+
+    /** Read and check a proposed current-schema market before a GUI cache swap. */
+    public record PreparedMarket(MarketData data, MarketState state) {}
+
+    public PreparedMarket loadStrict(List<Integer> offerSlots) throws IOException {
+        YamlConfiguration yaml = new YamlConfiguration();
+        try {
+            yaml.loadFromString(Files.readString(file.toPath(), StandardCharsets.UTF_8));
+        } catch (InvalidConfigurationException exception) {
+            throw new IOException("market.yml cannot be parsed: " + exception.getMessage(), exception);
+        }
+        validateCurrent(yaml, offerSlots);
+        return new PreparedMarket(readMarket(yaml), readState(yaml));
+    }
+
+    private MarketData readMarket(YamlConfiguration yaml) {
 
         ConfigurationSection guiSection = yaml.getConfigurationSection("gui");
         int size = clampSize(guiSection == null ? 54 : guiSection.getInt("size", 54));
@@ -122,12 +148,225 @@ public final class MarketRepository {
         return new MarketData(layout, rarities, rewards);
     }
 
+    static void validateCurrent(YamlConfiguration yaml, List<Integer> offerSlots) throws IOException {
+        ConfigurationSection rarities = yaml.getConfigurationSection("rarities");
+        ConfigurationSection rewards = yaml.getConfigurationSection("rewards");
+        if (rarities == null || rewards == null) {
+            throw new IOException("market.yml needs rarities and rewards sections");
+        }
+        ConfigurationSection assignments = yaml.getConfigurationSection("gui.slot-rarities");
+        if (yaml.isSet("gui.slot-rarities") && assignments == null) {
+            throw new IOException("market.yml:gui.slot-rarities must be a section");
+        }
+        if (assignments != null && assignments.getKeys(false).size() > offerSlots.size()) {
+            throw new IOException("market.yml:gui.slot-rarities has more assignments than GUI offer slots");
+        }
+        for (String key : assignments == null ? List.<String>of() : assignments.getKeys(false)) {
+            int slot;
+            try {
+                slot = Integer.parseInt(key);
+            } catch (NumberFormatException exception) {
+                throw new IOException("market.yml:gui.slot-rarities." + key + " is not a slot", exception);
+            }
+            String rarity = assignments.getString(key);
+            if (slot < 0 || slot >= 54 || rarity == null || !rarities.isConfigurationSection(rarity)) {
+                throw new IOException("market.yml:gui.slot-rarities." + key
+                    + " must be a valid slot and an existing rarity");
+            }
+        }
+        for (String id : rarities.getKeys(false)) {
+            String path = "rarities." + id;
+            if (!rarities.isConfigurationSection(id)) {
+                throw new IOException("market.yml:" + path + " must be a section");
+            }
+            checkText(yaml, path + ".name");
+            checkItem(yaml, path + ".icon");
+        }
+        for (String id : rewards.getKeys(false)) {
+            String path = "rewards." + id;
+            if (!rewards.isConfigurationSection(id)) {
+                throw new IOException("market.yml:" + path + " must be a section");
+            }
+            checkText(yaml, path + ".name");
+            String rarity = yaml.getString(path + ".rarity");
+            if (rarity == null || !rarities.isConfigurationSection(rarity)) {
+                throw new IOException("market.yml:" + path + ".rarity must name an existing rarity");
+            }
+            checkNonnegativeNumber(yaml, path + ".chance");
+            checkNonnegativeInteger(yaml, path + ".stock");
+            if (yaml.isSet(path + ".stock-mode")) {
+                String mode = yaml.getString(path + ".stock-mode");
+                if (mode == null || !List.of("SERVER_WIDE", "PER_PLAYER").contains(
+                    mode.toUpperCase(Locale.ROOT).replace('-', '_').replace(' ', '_'))) {
+                    throw new IOException("market.yml:" + path + ".stock-mode is invalid");
+                }
+            }
+            Object commands = yaml.get(path + ".commands");
+            if (commands != null && (!(commands instanceof List<?> lines)
+                || lines.stream().anyMatch(line -> !(line instanceof String)))) {
+                throw new IOException("market.yml:" + path + ".commands must be a text list");
+            }
+            checkItem(yaml, path + ".icon");
+            checkItem(yaml, path + ".reward-item");
+            String cost = path + ".cost";
+            if (yaml.isSet(cost) && !yaml.isConfigurationSection(cost)) {
+                throw new IOException("market.yml:" + cost + " must be a section");
+            }
+            if (yaml.isSet(cost + ".type")) {
+                String type = yaml.getString(cost + ".type");
+                if (type == null || !List.of("MONEY", "ITEM", "BOTH").contains(type.toUpperCase(Locale.ROOT))) {
+                    throw new IOException("market.yml:" + cost + ".type is invalid");
+                }
+            }
+            checkNonnegativeNumber(yaml, cost + ".money");
+            checkItem(yaml, cost + ".item");
+        }
+    }
+
+    private static void checkText(YamlConfiguration yaml, String path) throws IOException {
+        if (yaml.isSet(path) && !(yaml.get(path) instanceof String)) {
+            throw new IOException("market.yml:" + path + " must be text");
+        }
+    }
+
+    private static void checkNonnegativeNumber(YamlConfiguration yaml, String path) throws IOException {
+        if (yaml.isSet(path) && (!(yaml.get(path) instanceof Number number)
+            || !Double.isFinite(number.doubleValue()) || number.doubleValue() < 0)) {
+            throw new IOException("market.yml:" + path + " must be a finite nonnegative number");
+        }
+    }
+
+    private static void checkNonnegativeInteger(YamlConfiguration yaml, String path) throws IOException {
+        if (yaml.isSet(path) && (!(yaml.get(path) instanceof Integer count) || count < 0)) {
+            throw new IOException("market.yml:" + path + " must be a nonnegative integer");
+        }
+    }
+
+    private static void checkItem(YamlConfiguration yaml, String path) throws IOException {
+        if (!yaml.isSet(path)) return;
+        ConfigurationSection item = yaml.getConfigurationSection(path);
+        if (item == null) throw new IOException("market.yml:" + path + " must be an item section");
+        String materialName = item.getString("material");
+        if (item.isSet("material") && (materialName == null || Material.matchMaterial(materialName) == null)) {
+            throw new IOException("market.yml:" + path + ".material is invalid");
+        }
+        if (item.isSet("amount") && (!(item.get("amount") instanceof Integer amount) || amount < 1)) {
+            throw new IOException("market.yml:" + path + ".amount must be positive");
+        }
+        if (item.isSet("custom-model-data") && (!(item.get("custom-model-data") instanceof Integer model)
+            || model < 0)) {
+            throw new IOException("market.yml:" + path + ".custom-model-data must be nonnegative");
+        }
+        for (String flag : List.of("glow", "glowing")) {
+            if (item.isSet(flag) && !(item.get(flag) instanceof Boolean)) {
+                throw new IOException("market.yml:" + path + "." + flag + " must be true or false");
+            }
+        }
+        Object flags = item.get("item-flags");
+        if (flags != null && (!(flags instanceof List<?> names) || names.stream().anyMatch(name -> {
+            if (!(name instanceof String text)) return true;
+            try { ItemFlag.valueOf(text.toUpperCase(Locale.ROOT)); return false; }
+            catch (IllegalArgumentException exception) { return true; }
+        }))) {
+            throw new IOException("market.yml:" + path + ".item-flags has an invalid flag");
+        }
+        checkText(yaml, path + ".name");
+        Object lore = item.get("lore");
+        if (lore != null && (!(lore instanceof List<?> lines)
+            || lines.stream().anyMatch(line -> !(line instanceof String)))) {
+            throw new IOException("market.yml:" + path + ".lore must be a text list");
+        }
+        if (item.isSet("skull")) {
+            ConfigurationSection skull = item.getConfigurationSection("skull");
+            if (skull == null) throw new IOException("market.yml:" + path + ".skull must be a section");
+            checkText(yaml, path + ".skull.owner-name");
+            checkText(yaml, path + ".skull.owner-uuid");
+            if (skull.isSet("owner-uuid")) {
+                try { UUID.fromString(skull.getString("owner-uuid")); }
+                catch (IllegalArgumentException exception) {
+                    throw new IOException("market.yml:" + path + ".skull.owner-uuid is invalid", exception);
+                }
+            }
+            if (skull.isSet("textures")) {
+                ConfigurationSection textures = skull.getConfigurationSection("textures");
+                if (textures == null) {
+                    throw new IOException("market.yml:" + path + ".skull.textures must be a section");
+                }
+                checkTextureUrl(textures, "skin", path);
+                checkTextureUrl(textures, "cape", path);
+                if (textures.isSet("model")) {
+                    String model = textures.getString("model");
+                    if (model == null || !List.of("CLASSIC", "SLIM").contains(model.toUpperCase(Locale.ROOT))) {
+                        throw new IOException("market.yml:" + path + ".skull.textures.model is invalid");
+                    }
+                }
+            }
+        }
+    }
+
+    private static void checkTextureUrl(ConfigurationSection textures, String key, String itemPath)
+        throws IOException {
+        if (!textures.isSet(key)) return;
+        String value = textures.getString(key);
+        try {
+            URI uri = value == null ? null : new URI(value);
+            if (uri == null || uri.getScheme() == null
+                || !List.of("http", "https").contains(uri.getScheme().toLowerCase(Locale.ROOT))
+                || uri.getHost() == null || uri.getPath() == null || uri.getPath().isBlank()) {
+                throw new IOException("market.yml:" + itemPath + ".skull.textures." + key + " is not a URL");
+            }
+        } catch (URISyntaxException exception) {
+            throw new IOException("market.yml:" + itemPath + ".skull.textures." + key + " is not a URL", exception);
+        }
+    }
+
     public void save(MarketData marketData) {
         save(marketData, null);
     }
 
+    /** Stock changes must never serialize the cached market over owner edits made on disk. */
+    public void saveState(MarketSnapshot snapshot) {
+        saveState(file, snapshot);
+    }
+
+    static void saveState(File file, MarketSnapshot snapshot) {
+        try {
+            YamlConfiguration yaml = loadForUpdate(file);
+            yaml.set("state", null);
+            writeState(yaml, snapshot);
+            writeAtomically(file, yaml);
+        } catch (IOException | InvalidConfigurationException exception) {
+            throw new IllegalStateException("Could not save market state without altering owner data", exception);
+        }
+    }
+
+    private static YamlConfiguration loadForUpdate(File file) throws IOException, InvalidConfigurationException {
+        YamlConfiguration yaml = new YamlConfiguration();
+        yaml.options().parseComments(true);
+        yaml.loadFromString(Files.readString(file.toPath(), StandardCharsets.UTF_8));
+        return yaml;
+    }
+
+    private static void writeAtomically(File file, YamlConfiguration yaml) throws IOException {
+        File temporary = File.createTempFile("market-write-", ".yml", file.getParentFile());
+        try {
+            Files.writeString(temporary.toPath(), yaml.saveToString(), StandardCharsets.UTF_8);
+            try {
+                Files.move(temporary.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING,
+                    StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException exception) {
+                Files.move(temporary.toPath(), file.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            }
+        } finally {
+            temporary.delete();
+        }
+    }
+
     public MarketState loadState() {
-        YamlConfiguration yaml = YamlConfiguration.loadConfiguration(file);
+        return readState(YamlConfiguration.loadConfiguration(file));
+    }
+
+    private MarketState readState(YamlConfiguration yaml) {
         ConfigurationSection stateSection = yaml.getConfigurationSection("state");
         if (stateSection == null) {
             return null;
@@ -187,13 +426,20 @@ public final class MarketRepository {
     }
 
     public void save(MarketData marketData, MarketSnapshot snapshot) {
-        YamlConfiguration yaml = new YamlConfiguration();
+        YamlConfiguration yaml;
+        try {
+            yaml = loadForUpdate(file);
+        } catch (IOException | InvalidConfigurationException exception) {
+            throw new IllegalStateException("Could not read market.yml before editor save", exception);
+        }
 
         MarketLayout layout = marketData.getLayout();
-        yaml.set("gui.size", clampSize(layout.getSize()));
-        yaml.set("gui.info-slot", layout.getInfoSlot());
-        yaml.set("gui.close-slot", layout.getCloseSlot());
-        writeItem(yaml.createSection("gui.filler"), layout.getFillerItem());
+        yaml.set("gui.slot-rarities", null);
+        yaml.set("rarities", null);
+        yaml.set("rewards", null);
+        yaml.createSection("gui.slot-rarities");
+        yaml.createSection("rarities");
+        yaml.createSection("rewards");
         for (Map.Entry<Integer, String> entry : layout.getSlotRarities().entrySet()) {
             yaml.set("gui.slot-rarities." + entry.getKey(), entry.getValue());
         }
@@ -220,11 +466,12 @@ public final class MarketRepository {
         }
 
         if (snapshot != null) {
+            yaml.set("state", null);
             writeState(yaml, snapshot);
         }
 
         try {
-            yaml.save(file);
+            writeAtomically(file, yaml);
         } catch (IOException exception) {
             throw new IllegalStateException("Could not save market.yml", exception);
         }
@@ -234,7 +481,7 @@ public final class MarketRepository {
         return file;
     }
 
-    private void writeState(YamlConfiguration yaml, MarketSnapshot snapshot) {
+    private static void writeState(YamlConfiguration yaml, MarketSnapshot snapshot) {
         yaml.set("state.restocked-at", snapshot.getRestockedAt());
         yaml.set("state.next-restock-at", snapshot.getNextRestockAt());
         for (ActiveOffer offer : snapshot.getOffersByRewardId().values()) {
@@ -278,27 +525,25 @@ public final class MarketRepository {
         return clamped - (clamped % 9);
     }
 
-    private ItemStack readItem(ConfigurationSection section) {
+    public ItemStack readItem(ConfigurationSection section) {
         if (section == null || section.getKeys(false).isEmpty()) {
             return null;
         }
 
-        ItemStack serializedItem = readSerializedItemBytes(section);
-        if (serializedItem != null) {
-            return serializedItem;
-        }
-
-        serializedItem = readSerializedItem(section);
-        if (serializedItem != null) {
-            return serializedItem;
-        }
-
-        Material material = Material.matchMaterial(section.getString("material", "STONE"));
+        ItemStack item = readSerializedItemBytes(section);
+        if (item == null) item = readSerializedItem(section);
+        Material material = Material.matchMaterial(section.getString("material",
+            item == null ? "STONE" : item.getType().name()));
         if (material == null) {
             material = Material.STONE;
         }
-        int amount = Math.max(1, section.getInt("amount", 1));
-        ItemStack item = new ItemStack(material, amount);
+        int amount = Math.max(1, section.getInt("amount", item == null ? 1 : item.getAmount()));
+        if (item == null) {
+            item = new ItemStack(material, amount);
+        } else {
+            if (section.isSet("material") && item.getType() != material) item.setType(material);
+            item.setAmount(amount);
+        }
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             if (section.contains("name")) {
@@ -311,8 +556,15 @@ public final class MarketRepository {
                 }
                 meta.setLore(lore);
             }
-            if (section.getBoolean("glowing", false)) {
+            if (section.isSet("glowing") || section.isSet("glow")) {
+                boolean glowing = section.getBoolean("glowing", section.getBoolean("glow", false));
+                meta.setEnchantmentGlintOverride(glowing);
+            }
+            if (section.getBoolean("glowing", section.getBoolean("glow", false))) {
                 meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+            }
+            if (section.isInt("custom-model-data")) {
+                meta.setCustomModelData(section.getInt("custom-model-data"));
             }
             readItemFlags(section, meta);
             if (meta instanceof EnchantmentStorageMeta storageMeta) {
@@ -354,6 +606,12 @@ public final class MarketRepository {
         }
         if (meta.hasLore()) {
             section.set("lore", meta.getLore());
+        }
+        if (meta.hasCustomModelData()) {
+            section.set("custom-model-data", meta.getCustomModelData());
+        }
+        if (meta.hasEnchantmentGlintOverride()) {
+            section.set("glowing", meta.getEnchantmentGlintOverride());
         }
         if (!meta.getItemFlags().isEmpty()) {
             section.set("item-flags", meta.getItemFlags().stream()

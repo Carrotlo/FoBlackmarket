@@ -1,0 +1,34 @@
+# Public player market GUI.
+# Slots and filler item are still controlled by market.yml so existing market layouts keep working.
+# Placeholders: {time_remaining}
+title: "&8ʙʟᴀᴄᴋ ᴍᴀʀᴋᴇᴛ"
+
+items:
+  info:
+    material: CLOCK
+    name: "#03fc88Market Info"
+    lore:
+      - "#ffffffNext restock:"
+      - "#03fc88{time_remaining}"
+      - "#a7b8b0Use your selected offer to buy stock."
+
+offer-item:
+  # Used when a reward has no custom display icon.
+  fallback-material: CHEST
+  # The reward icon itself stays owned by market.yml; these templates own the
+  # final public GUI name and lore rendered around it.
+  name: "{reward}"
+  lore:
+    - "&8ʙᴜᴛᴛᴏɴ"
+    - " "
+    - "&eⓘ Information ↓"
+    - "&7&l | &fRarity: {rarity}"
+    - "&7&l | &fStock: {theme}{stock}"
+    - "&7&l | &fCost: {theme}{cost}"
+    - "&7&l | &fChance: {theme}{chance}%"
+    - "{commands_line}"
+    - " "
+    - "{status_line}"
+  commands-line: "&7&l | &fCommands: {theme}{commands}"
+  buy-line: "{good}→ Click to buy ←"
+  sold-out-line: "{bad}Sold out."

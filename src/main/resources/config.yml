@@ -9,12 +9,6 @@ settings:
     send-cooldown-feedback: false
     send-failed-purchase-feedback: true
     failed-purchase-feedback-cooldown-millis: 750
-  time-format:
-    day: "d"
-    hour: "h"
-    minute: "m"
-    second: "s"
-
 native-dialogs:
   # Uses Minecraft's native dialog/input screens for search and text/number input when supported.
   # Requires a compatible Paper or Paper-fork server with the Dialog API.

@@ -96,6 +96,7 @@ $RECYCLE.BIN/
 *.lnk
 
 target/
+.m2repo/
 
 pom.xml.tag
 pom.xml.releaseBackup
@@ -111,3 +112,6 @@ buildNumber.properties
 
 # Common working directory
 run/
+
+# Local release/support files that should not be published as source.
+FoBlackmarket description.txt

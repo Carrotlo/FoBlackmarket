@@ -1,0 +1,81 @@
+# Edit optional item icons here. Remove any :icon: token to hide it.
+# Unsupported servers, older Java clients, and Bedrock players automatically receive clean text without item sprites.
+# FoBlackmarket messages
+# Tokens: {prefix} {theme} {muted} {white} {good} {bad}
+
+tokens:
+  prefix: ":ender_eye: {theme}FoBlackmarket &8» {muted}"
+  theme: "#03fc88"
+  muted: "#a7b8b0"
+  white: "#ffffff"
+  good: "#3ecf8e"
+  bad: "#ff5d73"
+
+messages:
+  no-permission: "{prefix} {bad}You do not have permission."
+  player-only: "{prefix} {bad}Only players can use this."
+  blackmarket-info: "{prefix} {muted}Visit the {theme}Black Market NPC{muted}. Next restock in {theme}{time_remaining}{muted}."
+  market-unavailable: "{prefix} {bad}The black market is not ready yet."
+  reload-success: "{prefix}:emerald: {good}Config, messages, GUIs and market data reloaded."
+  reload-failed: "{prefix}:redstone: {bad}Reload failed at {theme}{step}{bad}. {muted}{error}"
+  restock-success: "{prefix}:clock: {good}The black market was restocked immediately."
+  opengui-success: "{prefix}:chest: {good}Opened the black market for {theme}{player}{good}."
+  player-not-found: "{prefix} {bad}That player is not online."
+  invalid-subcommand: "{prefix} {bad}Usage: {theme}/foblackmarketadmin <version|editor|reload|restock|opengui>{muted}."
+  invalid-opengui: "{prefix} {bad}Usage: {theme}/foblackmarketadmin opengui <player>{muted}."
+  command-failed: "{prefix} {bad}Command failed. {muted}{error}"
+  editor-saved: "{prefix}:emerald: {good}Saved {theme}{target}{good}."
+  editor-cancelled: "{prefix} {bad}Cancelled input."
+  editor-invalid: "{prefix} {bad}Invalid input. {muted}{reason}"
+  market-bought: "{prefix}:emerald: {good}Purchased {theme}{reward}{good}. Remaining stock: {theme}{stock}{good}."
+  market-sold-out: "{prefix} {bad}That offer is sold out."
+  market-not-enough-money: "{prefix} {bad}You need {theme}{price}{bad} to buy that."
+  market-not-enough-items: "{prefix} {bad}You need the required item cost to buy that."
+  market-inventory-full: "{prefix} {bad}You need inventory space first."
+  market-purchase-failed: "{prefix}:redstone: {bad}That purchase could not be completed."
+  market-cooldown: "{prefix} {bad}Please wait a moment before trying again."
+  opengui-cooldown: "{prefix} {bad}That player's market was opened too recently."
+  market-restocked-broadcast: "{prefix}:clock: {good}The Black Market has restocked. {muted}Next refresh in {theme}{time_remaining}{muted}."
+
+# Conditional text inserted into public GUI placeholders. Removing a key leaves
+# that optional line empty after the current schema has been installed.
+gui:
+  player-commands-line: "&7&l | &fCommands: {theme}{commands}"
+  player-buy-line: "{good}→ Click to buy ←"
+  player-sold-out-line: "{bad}Sold out."
+  command-commands-line: "&7&l | &fCommands: {theme}{commands}"
+  command-preview-line: "&7&l | {muted}Preview only."
+  rarity-selected: "{good}Selected"
+  rarity-unselected: "{muted}Click to view this rarity."
+  rarity-selected-click-line: ""
+  rarity-unselected-click-line: "{good}→ Click to view {rarity} ←"
+  no-rarity: "{muted}None"
+  showing-no-offers: "{muted}Showing 0 offers."
+  showing-offers: "{muted}Showing {first_offer}-{last_offer} of {total_offers} offers."
+  cost-money: "{money}"
+  cost-item: "{amount}x {item}"
+  cost-both: "{money} + {item}"
+  cost-missing-item: "Item cost not set"
+  cost-unnamed-item: "item"
+  # BCP 47 tag used for public counts, chance and duration numbers.
+  number-locale: "en-US"
+  # Complete duration phrases. {value} is already formatted with number-locale.
+  # Set a phrase to "" to omit that unit; separator joins the remaining units.
+  duration-day-one: "{value}d"
+  duration-day-other: "{value}d"
+  duration-hour-one: "{value}h"
+  duration-hour-other: "{value}h"
+  duration-minute-one: "{value}m"
+  duration-minute-other: "{value}m"
+  duration-second-one: "{value}s"
+  duration-second-other: "{value}s"
+  duration-zero: "{value}s"
+  duration-separator: " "
+
+titles:
+  admin-main: "&8Black Market Editor"
+  rewards: "&8Reward Sets"
+  reward-edit: "&8Edit Reward"
+  rarities: "&8Rarities"
+  rarity-edit: "&8Edit Rarity"
+  layout: "&8Market Layout"

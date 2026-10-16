@@ -14,13 +14,16 @@ import java.util.concurrent.ThreadLocalRandom;
 import me.foesio.core.command.CommandPlaceholders;
 import me.foesio.core.dialog.DialogIcons;
 import me.foesio.core.economy.VaultEconomyBridge;
-import me.foesio.core.gui.FoButtonStyle;
+import me.foesio.core.gui.publicgui.GuiDiagnostic;
+import me.foesio.core.gui.publicgui.PublicGuiDefinition;
+import me.foesio.core.gui.publicgui.PublicGuiService;
 import me.foesio.core.inventory.InventoryDepositResult;
 import me.foesio.core.inventory.OverflowPolicy;
 import me.foesio.core.text.FoText;
 import me.foesio.foBlackmarket.FoBlackmarket;
 import me.foesio.foBlackmarket.config.ConfigManager;
 import me.foesio.foBlackmarket.gui.GuiManager;
+import me.foesio.foBlackmarket.gui.PublicMarketMenus;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -41,6 +44,7 @@ public final class MarketService {
     private MarketSnapshot snapshot;
     private long nextRestockAt;
     private int restockTaskId = -1;
+    private boolean stagedStateNeedsSave;
 
     public MarketService(
         FoBlackmarket plugin,
@@ -57,59 +61,86 @@ public final class MarketService {
     }
 
     public void start() {
-        reloadFromDisk();
+        activatePublicGuiReload();
     }
 
     public void shutdown() {
-        synchronized (lock) {
-            persistCurrentState();
-        }
-        if (restockTaskId != -1) {
-            Bukkit.getScheduler().cancelTask(restockTaskId);
-            restockTaskId = -1;
+        try {
+            synchronized (lock) {
+                persistCurrentState();
+            }
+        } finally {
+            if (restockTaskId != -1) {
+                Bukkit.getScheduler().cancelTask(restockTaskId);
+                restockTaskId = -1;
+            }
         }
     }
 
-    public void reloadFromDisk() {
-        boolean restored;
-        synchronized (lock) {
-            vaultEconomy.reload();
-            this.marketData = marketRepository.load();
-            this.snapshot = restoreSnapshot(marketData, marketRepository.loadState());
-            restored = snapshot != null;
-            if (restored) {
-                long now = System.currentTimeMillis();
-                this.nextRestockAt = snapshot.getNextRestockAt();
-                if (nextRestockAt <= now) {
-                    this.nextRestockAt = now + restockIntervalMillis();
-                    this.snapshot = withNextRestock(snapshot, nextRestockAt);
-                    persistCurrentState();
-                }
-                scheduleRestocks();
-            }
+    public PublicGuiService.PreparedDependency stagePublicGuiDependency(
+        Map<String, PublicGuiDefinition> definitions
+    ) {
+        PublicGuiDefinition player = definitions.get(PublicMarketMenus.PLAYER);
+        if (player == null) {
+            return new PublicGuiService.PreparedDependency(
+                List.of(new GuiDiagnostic("market.yml", "<gui>", "player market definition is missing")), () -> {});
         }
-        if (!restored) {
-            restockNow(false);
-            return;
+        try {
+            List<Integer> slots = player.entries().get("offers").slots();
+            MarketRepository.PreparedMarket prepared = marketRepository.loadStrict(slots);
+            MarketData data = prepared.data();
+            alignLayoutWithPublicGui(data, player);
+            MarketSnapshot restored = restoreSnapshot(data, prepared.state());
+            long now = System.currentTimeMillis();
+            long next = restored == null ? now + restockIntervalMillis() : restored.getNextRestockAt();
+            boolean needsSave = restored == null || next <= now;
+            if (next <= now) next = now + restockIntervalMillis();
+            MarketSnapshot staged = restored == null ? buildSnapshot(data, now, next)
+                : next == restored.getNextRestockAt() ? restored : withNextRestock(restored, next);
+            long finalNext = next;
+            return PublicGuiService.PreparedDependency.ready(() -> {
+                synchronized (lock) {
+                    marketData = data;
+                    snapshot = staged;
+                    nextRestockAt = finalNext;
+                    stagedStateNeedsSave = needsSave;
+                }
+            });
+        } catch (Exception exception) {
+            return new PublicGuiService.PreparedDependency(List.of(new GuiDiagnostic("market.yml", "<data>",
+                exception.getMessage() == null ? exception.getClass().getSimpleName() : exception.getMessage())), () -> {});
+        }
+    }
+
+    /** Called only after Core has published the compatible GUI and market pair. */
+    public void activatePublicGuiReload() {
+        synchronized (lock) {
+            if (marketData == null || snapshot == null) {
+                throw new IllegalStateException("No compatible market snapshot is active");
+            }
+            vaultEconomy.reload();
+            if (stagedStateNeedsSave) {
+                try {
+                    persistCurrentState();
+                    stagedStateNeedsSave = false;
+                } catch (RuntimeException exception) {
+                    plugin.getLogger().severe("Market is active, but its new stock state could not be saved: "
+                        + exception.getMessage());
+                }
+            }
+            scheduleRestocks();
         }
         guiManager.refreshPlayerMarketGuis();
     }
 
     public void persistMarketData(boolean broadcast) {
-        synchronized (lock) {
-            if (marketData == null) {
-                marketData = marketRepository.load();
-            }
-        }
         restockNow(broadcast);
     }
 
     public void persistMarketDataWithoutRestock() {
         boolean refreshAllGuis;
         synchronized (lock) {
-            if (marketData == null) {
-                marketData = marketRepository.load();
-            }
+            requireActiveMarket();
             refreshAllGuis = refreshActiveOffersFromMarketData();
             persistMarketDataWithCurrentState();
         }
@@ -123,9 +154,7 @@ public final class MarketService {
         ActiveOffer refreshedOffer = null;
         boolean refreshAllGuis = false;
         synchronized (lock) {
-            if (marketData == null) {
-                marketData = marketRepository.load();
-            }
+            requireActiveMarket();
             RewardRefreshResult result = refreshActiveReward(previousRewardId, currentRewardId);
             refreshedOffer = result.offer();
             refreshAllGuis = result.refreshAllGuis();
@@ -142,9 +171,7 @@ public final class MarketService {
     public void persistRewardRemoval(String rewardId) {
         boolean refreshAllGuis;
         synchronized (lock) {
-            if (marketData == null) {
-                marketData = marketRepository.load();
-            }
+            requireActiveMarket();
             refreshAllGuis = removeActiveReward(rewardId);
             persistMarketDataWithCurrentState();
         }
@@ -156,16 +183,11 @@ public final class MarketService {
 
     public void rescheduleRestockFromNow() {
         synchronized (lock) {
-            if (marketData == null) {
-                marketData = marketRepository.load();
-            }
             this.nextRestockAt = System.currentTimeMillis() + restockIntervalMillis();
             if (snapshot != null) {
                 this.snapshot = withNextRestock(snapshot, nextRestockAt);
                 persistCurrentState();
                 scheduleRestocks();
-            } else {
-                marketRepository.save(marketData);
             }
         }
         guiManager.refreshPlayerMarketGuis();
@@ -173,9 +195,7 @@ public final class MarketService {
 
     public void restockNow(boolean broadcast) {
         synchronized (lock) {
-            if (marketData == null) {
-                marketData = marketRepository.load();
-            }
+            requireActiveMarket();
             long now = System.currentTimeMillis();
             this.nextRestockAt = now + restockIntervalMillis();
             this.snapshot = buildSnapshot(marketData, now, nextRestockAt);
@@ -190,9 +210,15 @@ public final class MarketService {
             }
         }
         if (broadcast && configManager.isAnnounceRestocks()) {
-            plugin.getMessages().broadcastConfigured("messages.market-restocked-broadcast", Map.of(
-                "time_remaining", configManager.formatDuration(getTimeUntilRestock())
-            ));
+            Map<String, String> values = Map.of("time_remaining",
+                configManager.formatDuration(getTimeUntilRestock()));
+            if (!plugin.getMessages().render("messages.market-restocked-broadcast", "", values).isBlank()) {
+                for (Player player : Bukkit.getOnlinePlayers()) {
+                    plugin.getMessages().send(player, "messages.market-restocked-broadcast", "", values);
+                }
+                plugin.getMessages().send(Bukkit.getConsoleSender(),
+                    "messages.market-restocked-broadcast", "", values);
+            }
         }
     }
 
@@ -352,7 +378,6 @@ public final class MarketService {
             }
 
             remainingStock = offer.decrementRemainingStock(player.getUniqueId());
-            cacheOfferDisplay(offer);
             persistCurrentState();
             updatedOffer = offer;
             result = PurchaseResult.success(reward.getDisplayName(), remainingStock);
@@ -380,22 +405,19 @@ public final class MarketService {
         return vaultEconomy.formatCompact(cost.getMoneyCost()) + " + " + describeItemCost(cost.getItemCost());
     }
 
-    public ItemStack createOfferDisplayItem(ActiveOffer offer, Player viewer) {
-        return createOfferDisplayItem(offer, viewer, null);
-    }
-
-    /**
-     * Creates an offer item and adds an optional extra line before metadata is
-     * rendered for the viewer. Keeping this in one render pass prevents
-     * Adventure object components from being fed back through legacy text.
-     */
-    public ItemStack createOfferDisplayItem(ActiveOffer offer, Player viewer, String extraLoreLine) {
-        if (offer == null) {
-            return null;
+    public String describePublicCost(RewardDefinition reward) {
+        CostDefinition cost = reward.getCost();
+        String money = plugin.getMessages().render("gui.cost-money", "",
+            Map.of("money", vaultEconomy.formatCompact(cost.getMoneyCost())));
+        if (cost.getType() == CostType.MONEY) {
+            return money;
         }
-        synchronized (lock) {
-            return buildOfferDisplayItem(offer, viewer, extraLoreLine);
+        String item = describePublicItemCost(cost.getItemCost());
+        if (cost.getType() == CostType.ITEM) {
+            return item;
         }
+        return plugin.getMessages().render("gui.cost-both", "",
+            Map.of("money", money, "item", item));
     }
 
     private void scheduleRestocks() {
@@ -411,7 +433,13 @@ public final class MarketService {
 
     private void persistCurrentState() {
         if (marketData != null && snapshot != null) {
-            marketRepository.save(marketData, snapshot);
+            marketRepository.saveState(snapshot);
+        }
+    }
+
+    private void requireActiveMarket() {
+        if (marketData == null || snapshot == null) {
+            throw new IllegalStateException("Public market is unavailable while its GUI migration is pending");
         }
     }
 
@@ -510,7 +538,6 @@ public final class MarketService {
         int maxStock = Math.max(0, reward.getStock());
         ActiveOffer replacement = new ActiveOffer(reward.getId(), reward, rarity, Math.min(source.getRemainingStock(), maxStock));
         replacement.setPerPlayerRemainingStock(cappedPerPlayerStock(source.getPerPlayerRemainingStock(), maxStock));
-        cacheOfferDisplay(replacement);
         return replacement;
     }
 
@@ -571,6 +598,29 @@ public final class MarketService {
         );
     }
 
+    private void alignLayoutWithPublicGui(MarketData data, PublicGuiDefinition player) {
+        List<Integer> configuredSlots = player.entries().get("offers").slots();
+        Map<Integer, String> oldAssignments = data.getLayout().getSlotRarities();
+        Map<Integer, String> assignments = new LinkedHashMap<>();
+        if (configuredSlots.containsAll(oldAssignments.keySet())) {
+            for (int slot : configuredSlots) {
+                String rarity = oldAssignments.get(slot);
+                if (rarity != null) {
+                    assignments.put(slot, rarity);
+                }
+            }
+        } else {
+            List<Map.Entry<Integer, String>> ordered = new ArrayList<>(oldAssignments.entrySet());
+            ordered.sort(Comparator.comparingInt(Map.Entry::getKey));
+            for (int index = 0; index < Math.min(configuredSlots.size(), ordered.size()); index++) {
+                assignments.put(configuredSlots.get(index), ordered.get(index).getValue());
+            }
+        }
+        data.getLayout().setSlotRarities(assignments);
+        data.getLayout().setSize(player.size());
+        data.getLayout().setCloseSlot(-1);
+    }
+
     private MarketSnapshot restoreSnapshot(MarketData data, MarketState state) {
         if (data == null || state == null || state.offers().isEmpty()) {
             return null;
@@ -588,7 +638,6 @@ public final class MarketService {
             }
             ActiveOffer offer = new ActiveOffer(reward.getId(), reward, rarity, offerState.remainingStock());
             offer.setPerPlayerRemainingStock(offerState.perPlayerRemainingStock());
-            cacheOfferDisplay(offer);
             offersByRewardId.put(reward.getId(), offer);
         }
 
@@ -597,12 +646,23 @@ public final class MarketService {
         }
 
         Map<Integer, ActiveOffer> offersBySlot = new LinkedHashMap<>();
-        for (Map.Entry<Integer, String> entry : state.slotRewardIds().entrySet()) {
-            int slot = entry.getKey();
-            if (slot < 0 || slot >= data.getLayout().getSize() || slot == data.getLayout().getInfoSlot() || slot == data.getLayout().getCloseSlot()) {
-                continue;
+        List<String> savedIds = new ArrayList<>(state.slotRewardIds().values());
+        for (Map.Entry<Integer, String> assignment : data.getLayout().getSlotRarities().entrySet()) {
+            int slot = assignment.getKey();
+            ActiveOffer offer = offersByRewardId.get(state.slotRewardIds().get(slot));
+            if (offer == null || !offer.getRarity().getId().equals(assignment.getValue())) {
+                offer = null;
+                for (String rewardId : savedIds) {
+                    ActiveOffer candidate = offersByRewardId.get(rewardId);
+                    if (candidate != null && candidate.getRarity().getId().equals(assignment.getValue())) {
+                        offer = candidate;
+                        savedIds.remove(rewardId);
+                        break;
+                    }
+                }
+            } else {
+                savedIds.remove(offer.getRewardId());
             }
-            ActiveOffer offer = offersByRewardId.get(entry.getValue());
             if (offer != null) {
                 offersBySlot.put(slot, offer);
             }
@@ -625,14 +685,11 @@ public final class MarketService {
                 continue;
             }
             ActiveOffer offer = new ActiveOffer(reward.getId(), reward, rarity, Math.max(0, reward.getStock()));
-            cacheOfferDisplay(offer);
             offersByRewardId.put(reward.getId(), offer);
         }
 
         Map<Integer, ActiveOffer> offersBySlot = new LinkedHashMap<>();
-        List<Map.Entry<Integer, String>> sortedSlots = new ArrayList<>(data.getLayout().getSlotRarities().entrySet());
-        sortedSlots.sort(Comparator.comparingInt(Map.Entry::getKey));
-        for (Map.Entry<Integer, String> entry : sortedSlots) {
+        for (Map.Entry<Integer, String> entry : data.getLayout().getSlotRarities().entrySet()) {
             ActiveOffer offer = pickOfferForRarity(entry.getValue(), offersByRewardId);
             if (offer != null) {
                 offersBySlot.put(entry.getKey(), offer);
@@ -733,6 +790,18 @@ public final class MarketService {
         return itemCost.getAmount() + "x " + getItemLabel(itemCost);
     }
 
+    private String describePublicItemCost(ItemStack itemCost) {
+        if (itemCost == null || itemCost.getType().isAir()) {
+            return plugin.getMessages().render("gui.cost-missing-item", "");
+        }
+        String label = itemCost.hasItemMeta() && itemCost.getItemMeta() != null
+            && itemCost.getItemMeta().hasDisplayName()
+            ? plugin.getMessages().renderTemplate(itemCost.getItemMeta().getDisplayName(), Map.of())
+            : plugin.getMessages().render("gui.cost-unnamed-item", "");
+        return plugin.getMessages().render("gui.cost-item", "",
+            Map.of("amount", configManager.formatCount(itemCost.getAmount()), "item", label));
+    }
+
     private String getItemLabel(ItemStack itemStack) {
         if (itemStack.hasItemMeta() && itemStack.getItemMeta() != null && itemStack.getItemMeta().hasDisplayName()) {
             return plugin.getMessages().renderTemplate(itemStack.getItemMeta().getDisplayName(), Map.of());
@@ -740,107 +809,13 @@ public final class MarketService {
         return prettify(itemStack.getType());
     }
 
-    private void cacheOfferDisplay(ActiveOffer offer) {
-        offer.setCostDisplay(describeCost(offer.getReward()));
-        offer.setDisplayItem(buildOfferDisplayItem(offer, null, null));
-    }
-
-    private ItemStack buildOfferDisplayItem(ActiveOffer offer, Player viewer, String extraLoreLine) {
-        me.foesio.foBlackmarket.gui.GuiConfigManager.PlayerMarketGuiConfig guiConfig = plugin.getGuiConfigManager().playerMarket();
-        ItemStack base = offer.getReward().getIcon();
-        ItemStack icon = base == null || base.getType().isAir() ? new ItemStack(guiConfig.offerFallbackMaterial()) : base.clone();
-        ItemMeta meta = icon.getItemMeta();
-        if (meta != null) {
-            int remainingStock = offer.getRemainingStock(viewer == null ? null : viewer.getUniqueId());
-            String commandsLine = offer.getReward().getCommands().isEmpty()
-                ? ""
-                : renderGuiText(viewer, guiConfig.commandsLine(), Map.of("commands", String.valueOf(offer.getReward().getCommands().size())));
-            // The offer name belongs to the reward/domain data, not to the
-            // generic public GUI resource. Keep it intact and use the same
-            // safe fallback for both the item name and the {reward} lore
-            // placeholder.
-            String rewardName = offer.getReward().getDisplayName();
-            if (rewardName == null || rewardName.isBlank()) {
-                rewardName = offer.getRewardId();
-            }
-            if (rewardName == null || rewardName.isBlank()) {
-                rewardName = prettify(icon.getType());
-            }
-            Map<String, String> placeholders = new LinkedHashMap<>();
-            placeholders.put("reward", rewardName);
-            placeholders.put("reward_id", offer.getRewardId());
-            placeholders.put("rarity", offer.getRarity().getDisplayName());
-            placeholders.put("rarity_id", offer.getRarity().getId());
-            placeholders.put("stock", String.valueOf(remainingStock));
-            placeholders.put("stock_mode", offer.getReward().getStockMode().getDisplayName());
-            // The provider may register after the market snapshot is cached.
-            // Format again for the actual GUI viewer so custom Vault currency
-            // formatting is not stuck at the startup fallback value.
-            placeholders.put("cost", describeCost(offer.getReward()));
-            placeholders.put("chance", trimChance(offer.getReward().getChance()));
-            placeholders.put("commands", String.valueOf(offer.getReward().getCommands().size()));
-            placeholders.put("commands_line", commandsLine);
-            String statusLine = remainingStock > 0 ? guiConfig.buyLine() : guiConfig.soldOutLine();
-            String renderedStatusLine = renderGuiText(viewer, statusLine, placeholders);
-            placeholders.put("status_line", renderedStatusLine);
-
-            String renderedName = renderGuiText(viewer, rewardName, Map.of());
-            if (renderedName == null || renderedName.isBlank()) {
-                renderedName = renderGuiText(viewer, prettify(icon.getType()), Map.of());
-            }
-            String displayName = DialogIcons.withMaterialIcon(
-                renderedName,
-                icon.getType()
-            );
-            // A reward can be configured as a sprite-only label. That is
-            // valid for a supported client, but becomes an empty legacy name
-            // for cached/null-viewer and Bedrock paths. Keep the item name
-            // useful everywhere by falling back to the material label.
-            if (DialogIcons.fallbackText(displayName).isBlank()) {
-                String fallbackName = renderGuiText(viewer, prettify(icon.getType()), Map.of());
-                displayName = DialogIcons.withMaterialIcon(fallbackName, icon.getType());
-            }
-            List<String> information = new ArrayList<>();
-            for (String line : guiConfig.offerLore()) {
-                String rendered = renderGuiText(viewer, line, placeholders);
-                if (!rendered.isBlank() && !rendered.equals(renderedStatusLine)) {
-                    information.add(rendered);
-                }
-            }
-            List<String> lore = new ArrayList<>(FoButtonStyle.buttonLore(
-                information,
-                remainingStock > 0 ? "buy" : "try again later"
-            ));
-            if (extraLoreLine != null && !extraLoreLine.isBlank()) {
-                String renderedExtraLine = renderGuiText(viewer, extraLoreLine, Map.of());
-                if (lore.isEmpty()) {
-                    lore.add(renderedExtraLine);
-                } else {
-                    lore.set(lore.size() - 1, FoButtonStyle.informationLine(renderedExtraLine));
-                }
-            }
-            if (!DialogIcons.applyItemMeta(meta, viewer, displayName, lore)) {
-                meta.setDisplayName(FoText.color(DialogIcons.fallbackText(displayName)));
-                meta.setLore(FoText.color(lore.stream().map(DialogIcons::fallbackText).toList()));
-            }
-            icon.setItemMeta(meta);
-        }
-        return icon;
-    }
-
-    private String renderGuiText(Player viewer, String template, Map<String, String> placeholders) {
-        return viewer == null
-            ? plugin.getMessages().renderTemplate(template, placeholders)
-            : plugin.getMessages().renderTemplateForViewer(viewer, template, placeholders);
-    }
-
-    private String trimChance(double chance) {
-        if (Math.floor(chance) == chance) {
-            return String.valueOf((long) chance);
-        }
-        return String.format(java.util.Locale.US, "%.2f", chance)
-            .replaceAll("0+$", "")
-            .replaceAll("\\.$", "");
+    public String formatChance(double chance) {
+        String tag = plugin.getMessages().render("gui.number-locale", "");
+        java.util.Locale locale = tag.isBlank() ? java.util.Locale.ROOT : java.util.Locale.forLanguageTag(tag);
+        java.text.NumberFormat number = java.text.NumberFormat.getNumberInstance(locale);
+        number.setMaximumFractionDigits(2);
+        number.setGroupingUsed(false);
+        return number.format(chance);
     }
 
     private record RewardRefreshResult(ActiveOffer offer, boolean refreshAllGuis) {

@@ -1,19 +1,15 @@
-# Public /blackmarket browser GUI.
-# Slot numbers are 0-based Minecraft inventory slots.
-# Placeholders: {time_remaining}, {selected_rarity}, {showing_offers}
 title: "&8ʙʟᴀᴄᴋ ᴍᴀʀᴋᴇᴛ"
 rows: 6
-
-slots:
-  timer: 4
-  rarities: [11, 12, 13, 14, 15, 16, 17]
-  offers: [28, 29, 30, 31, 32, 33, 34, 37, 38, 39, 40, 41, 42, 43]
-  previous-page: 36
-  next-page: 44
-
-items:
+filler:
+  enabled: true
+  material: "GRAY_STAINED_GLASS_PANE"
+  amount: 1
+  name: " "
+decorations:
   timer:
-    material: CLOCK
+    slots:
+      - 4
+    material: "CLOCK"
     name: ":clock: {theme}&lMARKET RESET"
     lore:
       - "&8ɪɴꜰᴏ"
@@ -22,16 +18,151 @@ items:
       - "&7&l | &fTime until reset: {theme}{time_remaining}"
       - "&7&l | &fSelected rarity: {theme}{selected_rarity}"
       - "&7&l | &f{showing_offers}"
-  empty-offer:
-    material: LIGHT_GRAY_STAINED_GLASS_PANE
-    name: " "
-    lore: []
-
-rarity-item:
-  lore:
-    - "Offers: {offer_count}"
-    - "{selection_status}"
-  selected: "Selected"
-  unselected: "Click to view this rarity."
-
-offer-preview-lore: "#a7b8b0Preview only."
+entries:
+  rarities:
+    slots:
+      - 11
+      - 12
+      - 13
+      - 14
+      - 15
+      - 16
+      - 17
+    empty-item:
+      material: "GRAY_STAINED_GLASS_PANE"
+      name: " "
+      lore: []
+    source-item:
+      lore:
+        mode: "replace"
+        lines:
+          - "&8ʙᴜᴛᴛᴏɴ"
+          - " "
+          - "&eⓘ Information ↓"
+          - "&7&l | &fOffers: {theme}{offer_count}"
+          - "&7&l | &fStatus: {selection_status}"
+          - " "
+          - "{click_line}"
+    actions:
+      left: "blackmarket.select-rarity"
+      right: "blackmarket.select-rarity"
+  previous-rarity-page:
+    slots:
+      - 10
+    empty-item:
+      material: "GRAY_STAINED_GLASS_PANE"
+      name: " "
+      lore: []
+    item:
+      material: "ARROW"
+      name: "{theme}&lPREVIOUS RARITIES"
+      lore:
+        - "&8ʙᴜᴛᴛᴏɴ"
+        - " "
+        - "&eⓘ Information ↓"
+        - "&7&l | &fRarity page {rarity_page}/{rarity_max_page}"
+        - " "
+        - "{good}→ Click to view previous rarities ←"
+    actions:
+      left: "blackmarket.previous-rarity-page"
+      right: "blackmarket.previous-rarity-page"
+  next-rarity-page:
+    slots:
+      - 18
+    empty-item:
+      material: "GRAY_STAINED_GLASS_PANE"
+      name: " "
+      lore: []
+    item:
+      material: "ARROW"
+      name: "{theme}&lNEXT RARITIES"
+      lore:
+        - "&8ʙᴜᴛᴛᴏɴ"
+        - " "
+        - "&eⓘ Information ↓"
+        - "&7&l | &fRarity page {rarity_page}/{rarity_max_page}"
+        - " "
+        - "{good}→ Click to view next rarities ←"
+    actions:
+      left: "blackmarket.next-rarity-page"
+      right: "blackmarket.next-rarity-page"
+  offers:
+    slots:
+      - 28
+      - 29
+      - 30
+      - 31
+      - 32
+      - 33
+      - 34
+      - 37
+      - 38
+      - 39
+      - 40
+      - 41
+      - 42
+      - 43
+    source-item:
+      lore:
+        mode: "replace"
+        lines:
+          - "&8ʙᴜᴛᴛᴏɴ"
+          - " "
+          - "&eⓘ Information ↓"
+          - "&7&l | &fRarity: {rarity}"
+          - "&7&l | &fStock: {theme}{stock}"
+          - "&7&l | &fCost: {theme}{cost}"
+          - "&7&l | &fChance: {theme}{chance}%"
+          - " "
+          - "{status_line}"
+    empty-item:
+      material: "LIGHT_GRAY_STAINED_GLASS_PANE"
+      name: " "
+      lore: []
+  previous-page:
+    slots:
+      - 36
+    empty-item:
+      material: "GRAY_STAINED_GLASS_PANE"
+      name: " "
+      lore: []
+    item:
+      material: "ARROW"
+      name: "{theme}&lPREVIOUS PAGE"
+      lore:
+        - "&8ʙᴜᴛᴛᴏɴ"
+        - " "
+        - "&eⓘ Information ↓"
+        - "&7&l | &fPage {page}/{max_page}"
+        - " "
+        - "{good}→ Click to view the previous page ←"
+    actions:
+      left: "blackmarket.previous-page"
+      right: "blackmarket.previous-page"
+  next-page:
+    slots:
+      - 44
+    empty-item:
+      material: "GRAY_STAINED_GLASS_PANE"
+      name: " "
+      lore: []
+    item:
+      material: "ARROW"
+      name: "{theme}&lNEXT PAGE"
+      lore:
+        - "&8ʙᴜᴛᴛᴏɴ"
+        - " "
+        - "&eⓘ Information ↓"
+        - "&7&l | &fPage {page}/{max_page}"
+        - " "
+        - "{good}→ Click to view the next page ←"
+    actions:
+      left: "blackmarket.next-page"
+      right: "blackmarket.next-page"
+states:
+  fallback-offer:
+    material: "CHEST"
+    name: "{reward}"
+  fallback-rarity:
+    material: "NAME_TAG"
+    name: "{rarity}"

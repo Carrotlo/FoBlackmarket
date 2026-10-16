@@ -3,17 +3,14 @@ package me.foesio.foBlackmarket.market;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
-import org.bukkit.inventory.ItemStack;
 
 public final class ActiveOffer {
 
     private final String rewardId;
     private final RewardDefinition reward;
     private final RarityDefinition rarity;
-    private String costDisplay;
     private int remainingStock;
     private final Map<UUID, Integer> perPlayerRemainingStock = new HashMap<>();
-    private ItemStack displayItem;
 
     public ActiveOffer(String rewardId, RewardDefinition reward, RarityDefinition rarity, int remainingStock) {
         this.rewardId = rewardId;
@@ -32,14 +29,6 @@ public final class ActiveOffer {
 
     public RarityDefinition getRarity() {
         return rarity;
-    }
-
-    public String getCostDisplay() {
-        return costDisplay;
-    }
-
-    public void setCostDisplay(String costDisplay) {
-        this.costDisplay = costDisplay;
     }
 
     public int getRemainingStock() {
@@ -83,11 +72,4 @@ public final class ActiveOffer {
         return updatedStock;
     }
 
-    public ItemStack getDisplayItem() {
-        return displayItem == null ? null : displayItem.clone();
-    }
-
-    public void setDisplayItem(ItemStack displayItem) {
-        this.displayItem = displayItem == null ? null : displayItem.clone();
-    }
 }

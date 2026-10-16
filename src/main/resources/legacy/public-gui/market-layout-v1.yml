@@ -1,0 +1,14 @@
+gui:
+  size: 45
+  info-slot: 4
+  close-slot: 40
+  filler:
+    material: GRAY_STAINED_GLASS_PANE
+    amount: 1
+    name: " "
+  slot-rarities:
+    "20": common
+    "21": uncommon
+    "22": rare
+    "23": epic
+    "24": legendary

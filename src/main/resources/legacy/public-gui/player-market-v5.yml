@@ -1,0 +1,46 @@
+title: "&8ʙʟᴀᴄᴋ ᴍᴀʀᴋᴇᴛ"
+rows: 5
+filler:
+  enabled: true
+  material: "GRAY_STAINED_GLASS_PANE"
+  amount: 1
+  name: " "
+decorations:
+  info:
+    slots:
+      - 4
+    material: "CLOCK"
+    name: "#03fc88Market Info"
+    lore:
+      - "#ffffffNext restock:"
+      - "#03fc88{time_remaining}"
+      - "#a7b8b0Use your selected offer to buy stock."
+entries:
+  offers:
+    slots:
+      - 20
+      - 21
+      - 22
+      - 23
+      - 24
+    source-item:
+      lore:
+        mode: "replace"
+        lines:
+          - "&8ʙᴜᴛᴛᴏɴ"
+          - " "
+          - "&eⓘ Information ↓"
+          - "&7&l | &fRarity: {rarity}"
+          - "&7&l | &fStock: {theme}{stock}"
+          - "&7&l | &fCost: {theme}{cost}"
+          - "&7&l | &fChance: {theme}{chance}%"
+          - "{commands_line}"
+          - " "
+          - "{status_line}"
+    actions:
+      left: "blackmarket.purchase"
+      right: "blackmarket.purchase"
+states:
+  fallback-offer:
+    material: "CHEST"
+    name: "{reward}"

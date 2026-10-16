@@ -19,7 +19,7 @@ messages:
   reload-success: "{prefix}:emerald: {good}Config, messages, GUIs and market data reloaded."
   reload-failed: "{prefix}:redstone: {bad}Reload failed at {theme}{step}{bad}. {muted}{error}"
   restock-success: "{prefix}:clock: {good}The black market was restocked immediately."
-  opengui-success: "{prefix}:chest: {good}Opened the black market for {theme}{player}{good}."
+  opengui-success: "{prefix}:chest_minecart: {good}Opened the black market for {theme}{player}{good}."
   player-not-found: "{prefix} {bad}That player is not online."
   invalid-subcommand: "{prefix} {bad}Usage: {theme}/foblackmarketadmin <version|editor|reload|restock|opengui>{muted}."
   invalid-opengui: "{prefix} {bad}Usage: {theme}/foblackmarketadmin opengui <player>{muted}."
@@ -36,6 +36,39 @@ messages:
   market-cooldown: "{prefix} {bad}Please wait a moment before trying again."
   opengui-cooldown: "{prefix} {bad}That player's market was opened too recently."
   market-restocked-broadcast: "{prefix}:clock: {good}The Black Market has restocked. {muted}Next refresh in {theme}{time_remaining}{muted}."
+
+# Conditional text inserted into public GUI placeholders. Removing a key leaves
+# that optional line empty after the current schema has been installed.
+gui:
+  player-buy-line: "{good}→ Click to buy ←"
+  player-sold-out-line: "{bad}Sold out."
+  command-preview-line: "&7&l | {muted}Preview only."
+  rarity-selected: "{good}Selected"
+  rarity-unselected: "{muted}Click to view this rarity."
+  rarity-selected-click-line: ""
+  rarity-unselected-click-line: "{good}→ Click to view {rarity} ←"
+  no-rarity: "{muted}None"
+  showing-no-offers: "{muted}Showing 0 offers."
+  showing-offers: "{muted}Showing {first_offer}-{last_offer} of {total_offers} offers."
+  cost-money: "{money}"
+  cost-item: "{amount}x {item}"
+  cost-both: "{money} + {item}"
+  cost-missing-item: "Item cost not set"
+  cost-unnamed-item: "item"
+  # BCP 47 tag used for public counts, chance and duration numbers.
+  number-locale: "en-US"
+  # Complete duration phrases. {value} is already formatted with number-locale.
+  # Set a phrase to "" to omit that unit; separator joins the remaining units.
+  duration-day-one: "{value}d"
+  duration-day-other: "{value}d"
+  duration-hour-one: "{value}h"
+  duration-hour-other: "{value}h"
+  duration-minute-one: "{value}m"
+  duration-minute-other: "{value}m"
+  duration-second-one: "{value}s"
+  duration-second-other: "{value}s"
+  duration-zero: "{value}s"
+  duration-separator: " "
 
 titles:
   admin-main: "&8Black Market Editor"

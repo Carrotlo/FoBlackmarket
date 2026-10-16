@@ -27,31 +27,34 @@ public final class BlackmarketCommand implements CommandExecutor {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         if (!sender.hasPermission("foblackmarket.use")) {
-            plugin.getMessages().send(sender, "messages.no-permission");
+            plugin.getMessages().send(sender, "messages.no-permission", "");
             plugin.getAdminSounds().updateError(sender);
             return true;
         }
         if (!marketService.hasActiveMarket()) {
-            plugin.getMessages().send(sender, "messages.market-unavailable");
+            plugin.getMessages().send(sender, "messages.market-unavailable", "");
             plugin.getAdminSounds().updateError(sender);
             return true;
         }
 
         if (configManager.shouldCommandOpenGui()) {
             if (!(sender instanceof Player player)) {
-                plugin.getMessages().send(sender, "messages.player-only");
+                plugin.getMessages().send(sender, "messages.player-only", "");
                 return true;
             }
 
             GuiManager.OpenPlayerMarketResult result = guiManager.openCommandMarket(player);
+            if (result == GuiManager.OpenPlayerMarketResult.UNAVAILABLE) {
+                plugin.getMessages().send(sender, "messages.market-unavailable", "");
+            }
             if (result == GuiManager.OpenPlayerMarketResult.COOLDOWN && configManager.shouldSendCooldownFeedback()) {
-                plugin.getMessages().send(sender, "messages.market-cooldown");
+                plugin.getMessages().send(sender, "messages.market-cooldown", "");
                 plugin.getAdminSounds().updateError(sender);
             }
             return true;
         }
 
-        plugin.getMessages().send(sender, "messages.blackmarket-info", Map.of(
+        plugin.getMessages().send(sender, "messages.blackmarket-info", "", Map.of(
             "time_remaining", configManager.formatDuration(marketService.getTimeUntilRestock())
         ));
         return true;

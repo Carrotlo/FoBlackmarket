@@ -1,71 +1,85 @@
 package me.foesio.foBlackmarket.gui;
 
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.UUID;
+import me.foesio.core.gui.publicgui.GuiLoadReport;
 import me.foesio.foBlackmarket.FoBlackmarket;
+import me.foesio.foBlackmarket.market.ActiveOffer;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
-public final class GuiManager {
+public final class GuiManager implements AutoCloseable {
 
     public enum OpenPlayerMarketResult {
         OPENED,
         ALREADY_OPEN,
-        COOLDOWN
+        COOLDOWN,
+        UNAVAILABLE
     }
 
     private static final String OPEN_GUI_BUCKET = "market-open";
     private final FoBlackmarket plugin;
-    private final Map<UUID, PlayerMarketGui> openPlayerMarketGuis = new HashMap<>();
-    private final Map<UUID, CommandMarketGui> openCommandMarketGuis = new HashMap<>();
+    private final PublicMarketMenus publicMenus;
 
     public GuiManager(FoBlackmarket plugin) {
         this.plugin = plugin;
-        Bukkit.getScheduler().runTaskTimer(plugin, this::refreshPlayerMarketGuis, 20L, 20L);
+        this.publicMenus = new PublicMarketMenus(plugin);
+        Bukkit.getScheduler().runTaskTimer(plugin, publicMenus::refreshAll, 20L, 20L);
+    }
+
+    public GuiLoadReport reloadPublicMenus() {
+        return publicMenus.reload();
+    }
+
+    public PublicMarketMenus publicMenus() {
+        return publicMenus;
+    }
+
+    public void forgetViewer(Player viewer) {
+        publicMenus.forget(viewer);
     }
 
     public OpenPlayerMarketResult openPlayerMarket(Player target) {
-        if (!plugin.getActionCooldowns().tryAcquire(target.getUniqueId(), OPEN_GUI_BUCKET, plugin.getConfigManager().getOpenGuiCooldownMillis())) {
+        if (!publicMenus.available()) {
+            return OpenPlayerMarketResult.UNAVAILABLE;
+        }
+        if (!plugin.getActionCooldowns().tryAcquire(target.getUniqueId(), OPEN_GUI_BUCKET,
+            plugin.getConfigManager().getOpenGuiCooldownMillis())) {
             return OpenPlayerMarketResult.COOLDOWN;
         }
-
-        PlayerMarketGui currentGui = openPlayerMarketGuis.get(target.getUniqueId());
-        int expectedPlayerMarketSize = plugin.getMarketService().getMarketData().getLayout().getSize();
-        if (currentGui != null) {
-            if (target.getOpenInventory().getTopInventory().getHolder() == currentGui
-                && currentGui.getInventory().getSize() == expectedPlayerMarketSize) {
-                return OpenPlayerMarketResult.ALREADY_OPEN;
-            }
+        if (publicMenus.isViewing(target, PublicMarketMenus.PLAYER)) {
+            return OpenPlayerMarketResult.ALREADY_OPEN;
         }
-
-        PlayerMarketGui gui = new PlayerMarketGui(plugin, target, this);
-        openPlayerMarketGuis.put(target.getUniqueId(), gui);
-        gui.open();
-        return OpenPlayerMarketResult.OPENED;
+        return publicMenus.openPlayer(target) ? OpenPlayerMarketResult.OPENED : OpenPlayerMarketResult.UNAVAILABLE;
     }
 
     public OpenPlayerMarketResult openCommandMarket(Player target) {
-        if (!plugin.getActionCooldowns().tryAcquire(target.getUniqueId(), OPEN_GUI_BUCKET, plugin.getConfigManager().getOpenGuiCooldownMillis())) {
+        if (!publicMenus.available()) {
+            return OpenPlayerMarketResult.UNAVAILABLE;
+        }
+        if (!plugin.getActionCooldowns().tryAcquire(target.getUniqueId(), OPEN_GUI_BUCKET,
+            plugin.getConfigManager().getOpenGuiCooldownMillis())) {
             return OpenPlayerMarketResult.COOLDOWN;
         }
-
-        CommandMarketGui currentGui = openCommandMarketGuis.get(target.getUniqueId());
-        if (currentGui != null) {
-            if (target.getOpenInventory().getTopInventory().getHolder() == currentGui
-                && currentGui.getInventory().getSize() == plugin.getGuiConfigManager().commandMarket().size()) {
-                return OpenPlayerMarketResult.ALREADY_OPEN;
-            }
+        if (publicMenus.isViewing(target, PublicMarketMenus.COMMAND)) {
+            return OpenPlayerMarketResult.ALREADY_OPEN;
         }
+        return publicMenus.openCommand(target) ? OpenPlayerMarketResult.OPENED : OpenPlayerMarketResult.UNAVAILABLE;
+    }
 
-        CommandMarketGui gui = new CommandMarketGui(plugin, target, this);
-        openCommandMarketGuis.put(target.getUniqueId(), gui);
-        gui.open();
-        return OpenPlayerMarketResult.OPENED;
+    public void refreshPlayerMarketGuis() {
+        publicMenus.refreshAll();
+    }
+
+    public void refreshPlayerMarketOffer(ActiveOffer offer) {
+        if (offer != null) {
+            publicMenus.refreshAll();
+        }
     }
 
     public void openMainEditor(Player player) {
+        if (!publicMenus.available() || plugin.getMarketService().getSnapshot() == null) {
+            plugin.getMessages().send(player, "messages.market-unavailable");
+            return;
+        }
         new MainEditorGui(plugin, player).open();
     }
 
@@ -106,100 +120,19 @@ public final class GuiManager {
     }
 
     public void openLayoutEditor(Player player) {
-        new LayoutEditorGui(plugin, player).open();
+        new LayoutEditorGui(plugin, player, 0).open();
     }
 
     public void openLayoutEditorSilently(Player player) {
-        new LayoutEditorGui(plugin, player).openSilently();
+        openLayoutEditorSilently(player, 0);
     }
 
-    public void refreshPlayerMarketGuis() {
-        if (plugin.getMarketService() == null) {
-            return;
-        }
-        Iterator<Map.Entry<UUID, PlayerMarketGui>> iterator = openPlayerMarketGuis.entrySet().iterator();
-        while (iterator.hasNext()) {
-            Map.Entry<UUID, PlayerMarketGui> entry = iterator.next();
-            Player player = plugin.getServer().getPlayer(entry.getKey());
-            PlayerMarketGui gui = entry.getValue();
-            if (player == null || player.getOpenInventory().getTopInventory().getHolder() != gui) {
-                iterator.remove();
-                continue;
-            }
-            if (gui.getInventory().getSize() != plugin.getMarketService().getMarketData().getLayout().getSize()) {
-                PlayerMarketGui replacement = new PlayerMarketGui(plugin, player, this);
-                entry.setValue(replacement);
-                replacement.openSilently();
-                continue;
-            }
-            gui.refresh();
-        }
-
-        Iterator<Map.Entry<UUID, CommandMarketGui>> commandIterator = openCommandMarketGuis.entrySet().iterator();
-        while (commandIterator.hasNext()) {
-            Map.Entry<UUID, CommandMarketGui> entry = commandIterator.next();
-            Player player = plugin.getServer().getPlayer(entry.getKey());
-            CommandMarketGui gui = entry.getValue();
-            if (player == null || player.getOpenInventory().getTopInventory().getHolder() != gui) {
-                commandIterator.remove();
-                continue;
-            }
-            if (gui.getInventory().getSize() != plugin.getGuiConfigManager().commandMarket().size()) {
-                CommandMarketGui replacement = new CommandMarketGui(plugin, player, this);
-                entry.setValue(replacement);
-                replacement.openSilently();
-                continue;
-            }
-            gui.refresh();
-        }
+    public void openLayoutEditorSilently(Player player, int page) {
+        new LayoutEditorGui(plugin, player, page).openSilently();
     }
 
-    public void refreshPlayerMarketOffer(me.foesio.foBlackmarket.market.ActiveOffer offer) {
-        if (offer == null) {
-            return;
-        }
-        Iterator<Map.Entry<UUID, PlayerMarketGui>> iterator = openPlayerMarketGuis.entrySet().iterator();
-        while (iterator.hasNext()) {
-            Map.Entry<UUID, PlayerMarketGui> entry = iterator.next();
-            Player player = plugin.getServer().getPlayer(entry.getKey());
-            PlayerMarketGui gui = entry.getValue();
-            if (player == null || player.getOpenInventory().getTopInventory().getHolder() != gui) {
-                iterator.remove();
-                continue;
-            }
-            if (gui.getInventory().getSize() != plugin.getMarketService().getMarketData().getLayout().getSize()) {
-                PlayerMarketGui replacement = new PlayerMarketGui(plugin, player, this);
-                entry.setValue(replacement);
-                replacement.openSilently();
-                continue;
-            }
-            gui.refreshOffer(offer);
-        }
-
-        Iterator<Map.Entry<UUID, CommandMarketGui>> commandIterator = openCommandMarketGuis.entrySet().iterator();
-        while (commandIterator.hasNext()) {
-            Map.Entry<UUID, CommandMarketGui> entry = commandIterator.next();
-            Player player = plugin.getServer().getPlayer(entry.getKey());
-            CommandMarketGui gui = entry.getValue();
-            if (player == null || player.getOpenInventory().getTopInventory().getHolder() != gui) {
-                commandIterator.remove();
-                continue;
-            }
-            if (gui.getInventory().getSize() != plugin.getGuiConfigManager().commandMarket().size()) {
-                CommandMarketGui replacement = new CommandMarketGui(plugin, player, this);
-                entry.setValue(replacement);
-                replacement.openSilently();
-                continue;
-            }
-            gui.refresh();
-        }
-    }
-
-    void unregisterPlayerMarketGui(Player player, PlayerMarketGui gui) {
-        openPlayerMarketGuis.remove(player.getUniqueId(), gui);
-    }
-
-    void unregisterCommandMarketGui(Player player, CommandMarketGui gui) {
-        openCommandMarketGuis.remove(player.getUniqueId(), gui);
+    @Override
+    public void close() {
+        publicMenus.close();
     }
 }

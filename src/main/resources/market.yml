@@ -2,14 +2,8 @@
 # Message and public GUI text editing is handled by messages.yml and guis/*.yml.
 
 gui:
-  size: 45
-  info-slot: 4
-  # Kept for old layouts as an inert reserved filler slot. No close button is rendered.
-  close-slot: 40
-  filler:
-    material: GRAY_STAINED_GLASS_PANE
-    amount: 1
-    name: " "
+  # Rarity assignment for the player-market.yml offer slots. GUI size,
+  # placement, and filler are configured in guis/player-market.yml.
   slot-rarities:
     "20": common
     "21": uncommon
@@ -23,31 +17,31 @@ rarities:
     icon:
       material: LIME_DYE
       amount: 1
-      name: "#03fc88Common"
+      name: ":lime_dye: #03fc88&lCOMMON"
   uncommon:
     name: "#03fc88Uncommon"
     icon:
       material: SEA_PICKLE
       amount: 1
-      name: "#03fc88Uncommon"
+      name: ":sea_pickle: #03fc88&lUNCOMMON"
   rare:
     name: "#03fc88Rare"
     icon:
       material: DIAMOND
       amount: 1
-      name: "#03fc88Rare"
+      name: ":diamond: #03fc88&lRARE"
   epic:
     name: "#03fc88Epic"
     icon:
       material: ENCHANTED_BOOK
       amount: 1
-      name: "#03fc88Epic"
+      name: ":enchanted_book: #03fc88&lEPIC"
   legendary:
     name: "#03fc88Legendary"
     icon:
       material: NETHER_STAR
       amount: 1
-      name: "#03fc88Legendary"
+      name: ":nether_star: #03fc88&lLEGENDARY"
 
 rewards:
   starter_food:
@@ -59,7 +53,7 @@ rewards:
     icon:
       material: COOKED_BEEF
       amount: 8
-      name: "#03fc88Starter Food Bundle"
+      name: ":cooked_beef: #03fc88Starter Food Bundle"
       lore:
         - "#ffffffFresh stock for hungry players."
     reward-item:
@@ -81,7 +75,7 @@ rewards:
     icon:
       material: IRON_PICKAXE
       amount: 1
-      name: "#03fc88Miner Kit"
+      name: ":iron_pickaxe: #03fc88Miner Kit"
       lore:
         - "#ffffffA quick mining starter."
     reward-item:
@@ -104,7 +98,7 @@ rewards:
     icon:
       material: DIAMOND
       amount: 6
-      name: "#03fc88Diamond Drop"
+      name: ":diamond: #03fc88Diamond Drop"
       lore:
         - "#ffffffClean gems from the market vault."
     reward-item:
@@ -126,7 +120,7 @@ rewards:
     icon:
       material: TRIPWIRE_HOOK
       amount: 1
-      name: "#03fc88Crate Key Deal"
+      name: ":tripwire_hook: #03fc88Crate Key Deal"
       lore:
         - "#ffffffRuns a reward command."
     reward-item: {}
@@ -144,7 +138,7 @@ rewards:
     icon:
       material: NETHERITE_SWORD
       amount: 1
-      name: "#03fc88Legendary Blade"
+      name: ":netherite_sword: #03fc88Legendary Blade"
       lore:
         - "#ffffffA one-off premium market drop."
     reward-item:

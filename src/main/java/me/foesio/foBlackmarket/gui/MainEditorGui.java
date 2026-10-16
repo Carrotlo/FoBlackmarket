@@ -23,7 +23,7 @@ public final class MainEditorGui extends BaseGui {
         ), "edit the restock interval"));
         boolean announceRestocks = plugin.getConfigManager().isAnnounceRestocks();
         inventory.setItem(11, me.foesio.core.editor.EditorItemFactory.toggle(viewer, "Restock Broadcasts", announceRestocks));
-        inventory.setItem(12, button(Material.CHEST, "#03fc88", "Reward Sets", List.of(
+        inventory.setItem(12, button(Material.CHEST_MINECART, "#03fc88", "Reward Sets", List.of(
             "Create and edit reward sets.",
             "Stock, cost, commands, chance, item."
         ), "manage reward sets"));
