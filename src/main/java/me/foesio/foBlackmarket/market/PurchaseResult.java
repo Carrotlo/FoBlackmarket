@@ -9,7 +9,8 @@ public final class PurchaseResult {
         NOT_ENOUGH_MONEY,
         NOT_ENOUGH_ITEMS,
         INVENTORY_FULL,
-        FAILED
+        FAILED,
+        CANCELLED
     }
 
     private final Status status;

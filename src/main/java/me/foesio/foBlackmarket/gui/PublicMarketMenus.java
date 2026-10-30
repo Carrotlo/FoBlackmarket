@@ -398,6 +398,7 @@ public final class PublicMarketMenus implements AutoCloseable {
             case NOT_ENOUGH_MONEY -> failed(viewer, "market-not-enough-money", Map.of("price", result.getPriceText()));
             case NOT_ENOUGH_ITEMS -> failed(viewer, "market-not-enough-items", Map.of());
             case INVENTORY_FULL -> failed(viewer, "market-inventory-full", Map.of());
+            case CANCELLED -> { }
             default -> failed(viewer, "market-purchase-failed", Map.of());
         }
         refreshAll();

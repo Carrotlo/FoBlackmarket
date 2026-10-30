@@ -5,6 +5,7 @@ import java.util.List;
 import me.foesio.core.number.DurationParser;
 import me.foesio.core.number.TickDuration;
 import me.foesio.foBlackmarket.FoBlackmarket;
+import me.foesio.foBlackmarket.api.RestockCause;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryClickEvent;
@@ -73,7 +74,7 @@ public final class MainEditorGui extends BaseGui {
             case 13 -> plugin.getGuiManager().openRarityList(viewer, 0);
             case 14 -> plugin.getGuiManager().openLayoutEditor(viewer);
             case 15 -> {
-                plugin.getMarketService().restockNow(true);
+                plugin.getMarketService().restockNow(true, RestockCause.EDITOR);
                 plugin.getMessages().send(viewer, "messages.restock-success");
                 refresh();
             }

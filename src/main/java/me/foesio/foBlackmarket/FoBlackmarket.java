@@ -19,12 +19,14 @@ import me.foesio.core.sound.FoGuiSounds;
 import me.foesio.core.sound.FoSoundService;
 import me.foesio.core.text.FoText;
 import me.foesio.core.update.UpdateNoticeService;
+import me.foesio.foBlackmarket.api.BlackmarketApi;
 import me.foesio.foBlackmarket.command.BlackmarketAdminCommand;
 import me.foesio.foBlackmarket.command.BlackmarketCommand;
 import me.foesio.foBlackmarket.config.ConfigManager;
 import me.foesio.foBlackmarket.gui.GuiListener;
 import me.foesio.foBlackmarket.gui.GuiManager;
 import me.foesio.foBlackmarket.gui.PublicMarketMigration;
+import me.foesio.foBlackmarket.integration.BlackmarketApiProvider;
 import me.foesio.foBlackmarket.market.MarketRepository;
 import me.foesio.foBlackmarket.market.MarketService;
 import me.foesio.foBlackmarket.performance.ActionCooldowns;
@@ -35,6 +37,7 @@ import org.bukkit.configuration.InvalidConfigurationException;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.event.HandlerList;
+import org.bukkit.plugin.ServicePriority;
 import org.bukkit.plugin.java.JavaPlugin;
 
 public final class FoBlackmarket extends JavaPlugin {
@@ -108,11 +111,14 @@ public final class FoBlackmarket extends JavaPlugin {
             marketService.start();
         }
 
+        getServer().getServicesManager().register(BlackmarketApi.class, new BlackmarketApiProvider(this),
+            this, ServicePriority.Normal);
         registerBlackmarketPlaceholders();
     }
 
     @Override
     public void onDisable() {
+        getServer().getServicesManager().unregisterAll(this);
         unregisterBlackmarketPlaceholders();
         if (marketService != null) {
             try {

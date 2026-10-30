@@ -67,6 +67,6 @@ Main config areas: `settings`, `native-dialogs`.
 <details>
 <summary><strong>Developer API</strong></summary>
 
-This plugin does not expose a public developer API.
+FoBlackmarket exposes a Java service for active offers, player purchase quotes, restock requests, and opening the player market. Bukkit events cover purchase requests, completed purchases, and completed restocks. See [public API source](src/main/java/me/foesio/foBlackmarket/api) for discovery, dependency setup, and event timing.
 
 </details>

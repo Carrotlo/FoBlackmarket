@@ -9,6 +9,7 @@ import me.foesio.core.command.FoAdminSubcommand;
 import me.foesio.core.reload.FoReloadResult;
 import me.foesio.core.update.UpdateNoticeService;
 import me.foesio.foBlackmarket.FoBlackmarket;
+import me.foesio.foBlackmarket.api.RestockCause;
 import me.foesio.foBlackmarket.config.ConfigManager;
 import me.foesio.foBlackmarket.gui.GuiManager;
 import me.foesio.foBlackmarket.market.MarketService;
@@ -98,7 +99,7 @@ public final class BlackmarketAdminCommand {
 
     private static FoAdminSubcommand restockSubcommand(FoBlackmarket plugin, MarketService marketService) {
         return FoAdminSubcommand.builder("restock", ctx -> {
-            marketService.restockNow(true);
+            marketService.restockNow(true, RestockCause.ADMIN);
             plugin.getMessages().send(ctx.sender(), "messages.restock-success");
             return true;
         }).usage("restock").build();

@@ -2,13 +2,17 @@ package me.foesio.foBlackmarket.market;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import me.foesio.core.command.CommandPlaceholders;
@@ -21,6 +25,13 @@ import me.foesio.core.inventory.InventoryDepositResult;
 import me.foesio.core.inventory.OverflowPolicy;
 import me.foesio.core.text.FoText;
 import me.foesio.foBlackmarket.FoBlackmarket;
+import me.foesio.foBlackmarket.api.MarketView;
+import me.foesio.foBlackmarket.api.OfferView;
+import me.foesio.foBlackmarket.api.PurchaseQuote;
+import me.foesio.foBlackmarket.api.RestockCause;
+import me.foesio.foBlackmarket.api.event.BlackmarketPurchaseCompletedEvent;
+import me.foesio.foBlackmarket.api.event.BlackmarketPurchaseRequestEvent;
+import me.foesio.foBlackmarket.api.event.BlackmarketRestockedEvent;
 import me.foesio.foBlackmarket.config.ConfigManager;
 import me.foesio.foBlackmarket.gui.GuiManager;
 import me.foesio.foBlackmarket.gui.PublicMarketMenus;
@@ -39,12 +50,14 @@ public final class MarketService {
     private final VaultEconomyBridge vaultEconomy;
     private final GuiManager guiManager;
     private final Object lock = new Object();
+    private final Set<UUID> purchasesInProgress = new HashSet<>();
 
     private MarketData marketData;
     private MarketSnapshot snapshot;
     private long nextRestockAt;
     private int restockTaskId = -1;
     private boolean stagedStateNeedsSave;
+    private boolean restockInProgress;
 
     public MarketService(
         FoBlackmarket plugin,
@@ -134,7 +147,7 @@ public final class MarketService {
     }
 
     public void persistMarketData(boolean broadcast) {
-        restockNow(broadcast);
+        restockNow(broadcast, RestockCause.EDITOR);
     }
 
     public void persistMarketDataWithoutRestock() {
@@ -183,41 +196,98 @@ public final class MarketService {
 
     public void rescheduleRestockFromNow() {
         synchronized (lock) {
-            this.nextRestockAt = System.currentTimeMillis() + restockIntervalMillis();
+            long proposedNext = System.currentTimeMillis() + restockIntervalMillis();
             if (snapshot != null) {
-                this.snapshot = withNextRestock(snapshot, nextRestockAt);
-                persistCurrentState();
-                scheduleRestocks();
+                MarketSnapshot proposed = withNextRestock(snapshot, proposedNext);
+                marketRepository.saveState(proposed);
+                this.snapshot = proposed;
+                this.nextRestockAt = proposedNext;
+                try {
+                    scheduleRestocks();
+                } catch (RuntimeException exception) {
+                    plugin.getLogger().severe("Restock time changed, but its next timer could not be scheduled: "
+                        + exception.getMessage());
+                }
+            } else {
+                this.nextRestockAt = proposedNext;
             }
         }
         guiManager.refreshPlayerMarketGuis();
     }
 
     public void restockNow(boolean broadcast) {
+        restockNow(broadcast, RestockCause.DIRECT);
+    }
+
+    public void restockNow(boolean broadcast, RestockCause cause) {
+        if (!Bukkit.isPrimaryThread()) {
+            throw new IllegalStateException("Market restocks require the Bukkit server thread");
+        }
+        Objects.requireNonNull(cause, "cause");
+        synchronized (lock) {
+            if (restockInProgress) {
+                throw new IllegalStateException("A market restock is already in progress");
+            }
+            restockInProgress = true;
+        }
+        try {
+            completeRestock(broadcast, cause);
+        } finally {
+            synchronized (lock) {
+                restockInProgress = false;
+            }
+        }
+    }
+
+    private void completeRestock(boolean broadcast, RestockCause cause) {
+        long restockedAt;
+        long nextRestock;
         synchronized (lock) {
             requireActiveMarket();
             long now = System.currentTimeMillis();
-            this.nextRestockAt = now + restockIntervalMillis();
-            this.snapshot = buildSnapshot(marketData, now, nextRestockAt);
-            persistCurrentState();
-            scheduleRestocks();
+            long proposedNext = now + restockIntervalMillis();
+            MarketSnapshot proposed = buildSnapshot(marketData, now, proposedNext);
+            marketRepository.saveState(proposed);
+            this.nextRestockAt = proposedNext;
+            this.snapshot = proposed;
+            try {
+                scheduleRestocks();
+            } catch (RuntimeException exception) {
+                plugin.getLogger().severe("Market restocked, but its next timer could not be scheduled: "
+                    + exception.getMessage());
+            }
+            restockedAt = now;
+            nextRestock = proposedNext;
         }
 
-        guiManager.refreshPlayerMarketGuis();
+        Bukkit.getPluginManager().callEvent(new BlackmarketRestockedEvent(cause, restockedAt, nextRestock));
+        try {
+            guiManager.refreshPlayerMarketGuis();
+        } catch (RuntimeException exception) {
+            plugin.getLogger().warning("Market restocked, but a GUI refresh failed: " + exception.getMessage());
+        }
         if (broadcast) {
-            for (Player player : Bukkit.getOnlinePlayers()) {
-                plugin.getSounds().play(player, "market.restock");
+            try {
+                for (Player player : Bukkit.getOnlinePlayers()) {
+                    plugin.getSounds().play(player, "market.restock");
+                }
+            } catch (RuntimeException exception) {
+                plugin.getLogger().warning("Market restock sound failed: " + exception.getMessage());
             }
         }
         if (broadcast && configManager.isAnnounceRestocks()) {
-            Map<String, String> values = Map.of("time_remaining",
-                configManager.formatDuration(getTimeUntilRestock()));
-            if (!plugin.getMessages().render("messages.market-restocked-broadcast", "", values).isBlank()) {
-                for (Player player : Bukkit.getOnlinePlayers()) {
-                    plugin.getMessages().send(player, "messages.market-restocked-broadcast", "", values);
+            try {
+                Map<String, String> values = Map.of("time_remaining",
+                    configManager.formatDuration(getTimeUntilRestock()));
+                if (!plugin.getMessages().render("messages.market-restocked-broadcast", "", values).isBlank()) {
+                    for (Player player : Bukkit.getOnlinePlayers()) {
+                        plugin.getMessages().send(player, "messages.market-restocked-broadcast", "", values);
+                    }
+                    plugin.getMessages().send(Bukkit.getConsoleSender(),
+                        "messages.market-restocked-broadcast", "", values);
                 }
-                plugin.getMessages().send(Bukkit.getConsoleSender(),
-                    "messages.market-restocked-broadcast", "", values);
+            } catch (RuntimeException exception) {
+                plugin.getLogger().warning("Market restock announcement failed: " + exception.getMessage());
             }
         }
     }
@@ -306,84 +376,204 @@ public final class MarketService {
         }
     }
 
+    /** Copies only offers currently displayed in player-market slots. */
+    public Optional<MarketView> currentMarket(UUID playerId) {
+        synchronized (lock) {
+            if (snapshot == null || playerId == null) return Optional.empty();
+            List<OfferView> offers = new ArrayList<>();
+            for (Map.Entry<Integer, ActiveOffer> entry : snapshot.getOffersBySlot().entrySet()) {
+                ActiveOffer offer = entry.getValue();
+                offers.add(new OfferView(entry.getKey(), offer.getRewardId(), offer.getReward().getDisplayName(),
+                    offer.getRarity().getId(), offer.getRemainingStock(playerId), describeCost(offer.getReward())));
+            }
+            return Optional.of(new MarketView(snapshot.getRestockedAt(), snapshot.getNextRestockAt(), offers));
+        }
+    }
+
+    public PurchaseQuote quotePurchase(Player player, String rewardId) {
+        synchronized (lock) {
+            return quotePurchaseLocked(player, rewardId);
+        }
+    }
+
+    private PurchaseQuote quotePurchaseLocked(Player player, String rewardId) {
+        if (snapshot == null || player == null || rewardId == null || rewardId.isBlank()) {
+            return quote(PurchaseQuote.Status.UNAVAILABLE, rewardId, 0, "");
+        }
+        ActiveOffer offer = snapshot.getOffersByRewardId().get(rewardId);
+        if (offer == null || !snapshot.getOffersBySlot().containsValue(offer)) {
+            return quote(PurchaseQuote.Status.UNAVAILABLE, rewardId, 0, "");
+        }
+        int remainingStock = offer.getRemainingStock(player.getUniqueId());
+        if (remainingStock <= 0) return quote(PurchaseQuote.Status.SOLD_OUT, rewardId, 0, "");
+        RewardDefinition reward = offer.getReward();
+        CostDefinition cost = reward.getCost();
+        ItemStack rewardItem = reward.getRewardItem();
+        boolean hasRewardItem = rewardItem != null && !rewardItem.getType().isAir();
+        if (!hasRewardItem && reward.getCommands().isEmpty()) {
+            return quote(PurchaseQuote.Status.FAILED, rewardId, remainingStock, "");
+        }
+        if (hasRewardItem && !plugin.getCore().inventoryDeposits().canFitAll(player, rewardItem)) {
+            return quote(PurchaseQuote.Status.INVENTORY_FULL, rewardId, remainingStock, "");
+        }
+        if (requiresMoney(cost)) {
+            double moneyCost = Math.max(0.0D, cost.getMoneyCost());
+            if (!vaultEconomy.isAvailable() || !vaultEconomy.has(player, moneyCost)) {
+                return quote(PurchaseQuote.Status.NOT_ENOUGH_MONEY, rewardId, remainingStock,
+                    vaultEconomy.formatCompact(moneyCost));
+            }
+        }
+        if (requiresItems(cost)) {
+            ItemStack itemCost = cost.getItemCost();
+            if (itemCost == null || itemCost.getType().isAir() || !hasRequiredItems(player.getInventory(), itemCost)) {
+                return quote(PurchaseQuote.Status.NOT_ENOUGH_ITEMS, rewardId, remainingStock, "");
+            }
+        }
+        return quote(PurchaseQuote.Status.AVAILABLE, rewardId, remainingStock, "");
+    }
+
+    private PurchaseQuote quote(PurchaseQuote.Status status, String rewardId, int remainingStock, String priceText) {
+        return new PurchaseQuote(status, rewardId, remainingStock, priceText);
+    }
+
     public PurchaseResult purchase(Player player, String rewardId) {
+        if (!Bukkit.isPrimaryThread()) {
+            throw new IllegalStateException("Market purchases require the Bukkit server thread");
+        }
+        if (player == null) return PurchaseResult.of(PurchaseResult.Status.UNAVAILABLE);
+        UUID playerId = player.getUniqueId();
+        synchronized (lock) {
+            if (!purchasesInProgress.add(playerId)) {
+                return PurchaseResult.of(PurchaseResult.Status.FAILED);
+            }
+        }
+        try {
+            return completePurchase(player, rewardId);
+        } finally {
+            synchronized (lock) {
+                purchasesInProgress.remove(playerId);
+            }
+        }
+    }
+
+    private PurchaseResult completePurchase(Player player, String rewardId) {
+        PurchaseQuote initial = quotePurchase(player, rewardId);
+        if (!initial.canPurchase()) return failedPurchase(initial);
+        BlackmarketPurchaseRequestEvent request = new BlackmarketPurchaseRequestEvent(player, initial);
+        Bukkit.getPluginManager().callEvent(request);
+        if (request.isCancelled()) return PurchaseResult.of(PurchaseResult.Status.CANCELLED);
+
         PurchaseResult result;
         ActiveOffer updatedOffer = null;
+        List<String> rewardCommands;
         synchronized (lock) {
-            if (snapshot == null) {
-                return PurchaseResult.of(PurchaseResult.Status.UNAVAILABLE);
-            }
+            PurchaseQuote current = quotePurchaseLocked(player, rewardId);
+            if (!current.canPurchase()) return failedPurchase(current);
             ActiveOffer offer = snapshot.getOffersByRewardId().get(rewardId);
-            if (offer == null) {
-                return PurchaseResult.of(PurchaseResult.Status.UNAVAILABLE);
-            }
-            int remainingStock = offer.getRemainingStock(player.getUniqueId());
-            if (remainingStock <= 0) {
-                return PurchaseResult.of(PurchaseResult.Status.SOLD_OUT);
-            }
-
+            int remainingStock;
             RewardDefinition reward = offer.getReward();
             CostDefinition cost = reward.getCost();
             ItemStack rewardItem = reward.getRewardItem();
             boolean hasRewardItem = rewardItem != null && !rewardItem.getType().isAir();
-            boolean hasCommands = !reward.getCommands().isEmpty();
-            if (!hasRewardItem && !hasCommands) {
-                return PurchaseResult.of(PurchaseResult.Status.FAILED);
-            }
-
-            if (hasRewardItem && !plugin.getCore().inventoryDeposits().canFitAll(player, rewardItem)) {
-                return PurchaseResult.of(PurchaseResult.Status.INVENTORY_FULL);
-            }
+            double moneyCost = requiresMoney(cost) ? Math.max(0.0D, cost.getMoneyCost()) : 0.0D;
+            boolean moneyWithdrawn = false;
 
             if (requiresMoney(cost)) {
-                double moneyCost = Math.max(0.0D, cost.getMoneyCost());
-                if (!vaultEconomy.isAvailable() || !vaultEconomy.has(player, moneyCost)) {
-                    return PurchaseResult.moneyFailure(vaultEconomy.formatCompact(moneyCost));
-                }
-            }
-
-            if (requiresItems(cost)) {
-                ItemStack costItem = cost.getItemCost();
-                if (costItem == null || costItem.getType().isAir() || !hasRequiredItems(player.getInventory(), costItem)) {
-                    return PurchaseResult.of(PurchaseResult.Status.NOT_ENOUGH_ITEMS);
-                }
-            }
-
-            if (requiresMoney(cost)) {
-                double moneyCost = Math.max(0.0D, cost.getMoneyCost());
                 if (!vaultEconomy.withdraw(player, moneyCost)) {
                     return PurchaseResult.of(PurchaseResult.Status.FAILED);
                 }
+                moneyWithdrawn = true;
+            }
+            if (snapshot.getOffersByRewardId().get(rewardId) != offer) {
+                refundMoney(player, moneyCost, moneyWithdrawn);
+                return PurchaseResult.of(PurchaseResult.Status.UNAVAILABLE);
             }
 
-            if (requiresItems(cost)) {
-                removeRequiredItems(player.getInventory(), cost.getItemCost());
-            }
-
-            if (hasRewardItem) {
-                InventoryDepositResult deposit = plugin.getCore().inventoryDeposits()
-                    .deposit(player, rewardItem.clone(), OverflowPolicy.BLOCK_COLLECTION);
-                if (!deposit.fullyAccepted()) {
-                    return PurchaseResult.of(PurchaseResult.Status.INVENTORY_FULL);
+            ItemStack[] originalItems = copyStorage(player.getInventory().getStorageContents());
+            int oldServerStock = offer.getRemainingStock();
+            Map<UUID, Integer> oldPlayerStock = offer.getPerPlayerRemainingStock();
+            try {
+                if (requiresItems(cost)) {
+                    removeRequiredItems(player.getInventory(), cost.getItemCost());
                 }
+                if (hasRewardItem) {
+                    InventoryDepositResult deposit = plugin.getCore().inventoryDeposits()
+                        .deposit(player, rewardItem.clone(), OverflowPolicy.BLOCK_COLLECTION);
+                    if (!deposit.fullyAccepted()) {
+                        rollbackPlayerPayment(player, originalItems, moneyCost, moneyWithdrawn);
+                        return PurchaseResult.of(PurchaseResult.Status.INVENTORY_FULL);
+                    }
+                }
+                remainingStock = offer.decrementRemainingStock(player.getUniqueId());
+                persistCurrentState();
+            } catch (RuntimeException exception) {
+                offer.setRemainingStock(oldServerStock);
+                offer.setPerPlayerRemainingStock(oldPlayerStock);
+                rollbackPlayerPayment(player, originalItems, moneyCost, moneyWithdrawn);
+                plugin.getLogger().severe("Purchase could not be saved or delivered for " + rewardId
+                    + ": " + exception.getMessage());
+                return PurchaseResult.of(PurchaseResult.Status.FAILED);
             }
-
-            for (String command : reward.getCommands()) {
+            updatedOffer = offer;
+            result = PurchaseResult.success(reward.getDisplayName(), remainingStock);
+            rewardCommands = reward.getCommands();
+        }
+        Bukkit.getPluginManager().callEvent(new BlackmarketPurchaseCompletedEvent(player, rewardId,
+            result.getRemainingStock()));
+        for (String command : rewardCommands) {
+            try {
                 String resolved = CommandPlaceholders.apply(command, Map.of(
                     "player", player.getName(),
                     "player_uuid", player.getUniqueId().toString(),
                     "uuid", player.getUniqueId().toString()
                 ));
                 Bukkit.dispatchCommand(Bukkit.getConsoleSender(), resolved);
+            } catch (RuntimeException exception) {
+                plugin.getLogger().severe("Reward command failed after purchase of " + rewardId
+                    + ": " + exception.getMessage());
             }
-
-            remainingStock = offer.decrementRemainingStock(player.getUniqueId());
-            persistCurrentState();
-            updatedOffer = offer;
-            result = PurchaseResult.success(reward.getDisplayName(), remainingStock);
         }
         guiManager.refreshPlayerMarketOffer(updatedOffer);
         return result;
+    }
+
+    private ItemStack[] copyStorage(ItemStack[] contents) {
+        return Arrays.stream(contents).map(item -> item == null ? null : item.clone()).toArray(ItemStack[]::new);
+    }
+
+    private void refundMoney(Player player, double amount, boolean withdrawn) {
+        if (withdrawn) {
+            try {
+                if (!vaultEconomy.deposit(player, amount)) {
+                    plugin.getLogger().severe("Could not refund " + amount + " to " + player.getUniqueId()
+                        + " after a failed purchase");
+                }
+            } catch (RuntimeException exception) {
+                plugin.getLogger().severe("Could not refund " + amount + " to " + player.getUniqueId()
+                    + " after a failed purchase: " + exception.getMessage());
+            }
+        }
+    }
+
+    private void rollbackPlayerPayment(Player player, ItemStack[] originalItems, double amount, boolean withdrawn) {
+        try {
+            player.getInventory().setStorageContents(originalItems);
+        } catch (RuntimeException exception) {
+            plugin.getLogger().severe("Could not restore inventory for " + player.getUniqueId()
+                + " after a failed purchase: " + exception.getMessage());
+        }
+        refundMoney(player, amount, withdrawn);
+    }
+
+    private PurchaseResult failedPurchase(PurchaseQuote quote) {
+        return switch (quote.status()) {
+            case NOT_ENOUGH_MONEY -> PurchaseResult.moneyFailure(quote.priceText());
+            case SOLD_OUT -> PurchaseResult.of(PurchaseResult.Status.SOLD_OUT);
+            case NOT_ENOUGH_ITEMS -> PurchaseResult.of(PurchaseResult.Status.NOT_ENOUGH_ITEMS);
+            case INVENTORY_FULL -> PurchaseResult.of(PurchaseResult.Status.INVENTORY_FULL);
+            case FAILED -> PurchaseResult.of(PurchaseResult.Status.FAILED);
+            default -> PurchaseResult.of(PurchaseResult.Status.UNAVAILABLE);
+        };
     }
 
     public PurchaseResult purchase(Player player, int slot) {
@@ -426,7 +616,7 @@ public final class MarketService {
         }
         restockTaskId = Bukkit.getScheduler().scheduleSyncDelayedTask(
             plugin,
-            () -> restockNow(true),
+            () -> restockNow(true, RestockCause.SCHEDULED),
             delayTicksUntilNextRestock()
         );
     }
